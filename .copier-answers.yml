@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 2024.04.23
+_src_path: gh:scientific-python/cookie
+backend: hatch
+email: afine2@uchicago.edu
+full_name: Adam Fine
+license: Apache
+org: enifmada
+project_name: polygenic-adaptation
+project_short_description: A framework for detecting polygenic adaptation from time-series
+    genetic data
+url: https://github.com/enifmada/polygenic-adaptation
+vcs: true
