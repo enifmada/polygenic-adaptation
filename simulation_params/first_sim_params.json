@@ -1,0 +1,19 @@
+{
+"num_loci": 64,
+"Ne": 10000,
+"num_gens_list": [300],
+"beta_values": 0.1,
+"S_list": [1.0],
+"dz_list": [0.0,0.1],
+"init_cond_list": ["uniform"],
+"file_prefix": "first_sim_",
+"seed": 5,
+"num_sampling_times": 11,
+"samples_per_timepoint": 30,
+"save_plots": true,
+"hidden_states": 500,
+"init_cond": "uniform",
+"grid_s_max": 0.5,
+"num_half_grid_points": 31,
+"num_reps": 16
+}

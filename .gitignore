@@ -156,3 +156,7 @@ Thumbs.db
 # Common editor files
 *~
 *.swp
+
+#snakemake stuff
+src/polygenic_adaptation/.snakemake/
+src/polygenic_adaptation/.idea/

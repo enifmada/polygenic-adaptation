@@ -7,7 +7,7 @@ full_name: Adam Fine
 license: Apache
 org: enifmada
 project_name: polygenic-adaptation
-project_short_description: A framework for detecting polygenic adaptation from time-series
-    genetic data
+project_short_description:
+  A framework for detecting polygenic adaptation from time-series genetic data
 url: https://github.com/enifmada/polygenic-adaptation
 vcs: true

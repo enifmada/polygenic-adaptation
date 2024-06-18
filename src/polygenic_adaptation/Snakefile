@@ -1,0 +1,74 @@
+from pathlib import Path
+import json
+from itertools import product as itprod
+from polyutil import generate_fname
+
+base_dir = Path("../../../polyoutput")
+data_dir = base_dir/"sims/data"
+plots_dir = base_dir/"sims/plots"
+analysis_dir = base_dir/"sims/analysis"
+
+json_file_loc = "../../simulation_params/first_sim_params.json"
+
+with open(json_file_loc) as f:
+    json_params = json.load(f)
+if "hmm_Ne" not in json_params.keys():
+    json_params["hmm_Ne"] = json_params["Ne"]
+
+base_csv_path = f"{data_dir}/{json_params['file_prefix']}"
+base_plots_path = f"{plots_dir}/{json_params['file_prefix']}"
+base_analysis_path = f"{analysis_dir}/{json_params['file_prefix']}"
+
+output_csvs = []
+output_plots = []
+output_grids = []
+
+for dz, S, g, ic in itprod(json_params["dz_list"], json_params["S_list"], json_params['num_gens_list'], json_params['init_cond_list']):
+    base_fname = generate_fname(**{"S":S, "dz":dz, "g":g, "ic":ic})
+    for i in range(json_params["num_reps"]):
+        output_csvs.append(f"{base_csv_path}{base_fname}_rep{i}_data.csv")
+        output_plots.append(f"{base_csv_path}{base_fname}_rep{i}_freqs.pdf")
+        output_grids.append(f"{base_analysis_path}{base_fname}_rep{i}_grid.csv")
+
+S_str = ' '.join(str(S_i) for S_i in json_params['S_list'])
+dz_str = ' '.join(str(dz_i) for dz_i in json_params['dz_list'])
+g_str = ' '.join(str(g_i) for g_i in json_params['num_gens_list'])
+ic_str = ' '.join(str(ic_i) for ic_i in json_params['init_cond_list'])
+save_plots_str = '--save_plots' if json_params['save_plots'] else ''
+
+rule all:
+    input:
+        base_analysis_path + "confusion_table.csv",
+        base_plots_path + "estimated_gradient.pdf"
+
+rule generate_data:
+    output:
+        output_csvs,
+        output_plots
+    shell:
+        f"python simulate_static.py {data_dir} -n {json_params['num_reps']} -nl {json_params['num_loci']} "
+        f"-S {S_str} -dz {dz_str} -g {g_str} -ic {ic_str}  -b {json_params['beta_values']} -nst {json_params['num_sampling_times']} "
+        f"-spt {json_params['samples_per_timepoint']} -Ne {json_params['Ne']} --seed {json_params['seed']} "
+        f"{save_plots_str} --prefix {json_params['file_prefix']} --snakemake"
+
+rule run_grid:
+    input:
+        base_csv_path+"g{g}_S{S}_dz{dz}_{ic}_rep{i}_data.csv"
+    output:
+        base_analysis_path+"g{g}_S{S}_dz{dz}_{ic}_rep{i}_grid.csv"
+    shell:
+        f"python run_hmm.py {{input}} {{output}} --time_after_zero -hs {json_params['hidden_states']} -sid {json_params['init_cond']}"
+        f" --grid_s_max {json_params['grid_s_max']} -np {json_params['num_half_grid_points']} -Ne {json_params['hmm_Ne']}"
+        f" --progressbar --snakemake"
+
+rule analyze_grids:
+    input:
+        output_grids,
+        json_file_loc
+    output:
+        base_analysis_path+"confusion_table.csv",
+        base_plots_path+"estimated_gradient.pdf"
+    script:
+        "analyze_grids.py"
+
+
