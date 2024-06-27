@@ -160,3 +160,8 @@ Thumbs.db
 #snakemake stuff
 src/polygenic_adaptation/.snakemake/
 src/polygenic_adaptation/.idea/
+
+#extract_vcfs outputs
+extract_vcfs/AADR
+extract_vcfs/extracted
+extract_vcfs/.snakemake

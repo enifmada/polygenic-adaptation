@@ -30,7 +30,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = []
+dependencies = ["snakemake>=8.0.0","numpy>=1.21.0","matplotlib","numba","tqdm","colorcet","Cartopy>=0.23","jinja2","cycler","seaborn>=0.13"]
 
 [project.optional-dependencies]
 test = [
@@ -63,7 +63,6 @@ build.hooks.vcs.version-file = "src/polygenic_adaptation/_version.py"
 [tool.hatch.envs.default]
 features = ["test"]
 scripts.test = "pytest {args}"
-dependencies =["snakemake>=8.0.0","numpy>=1.21.0","matplotlib","numba","tqdm"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -88,6 +87,7 @@ report.exclude_also = [
 
 [tool.ruff]
 src = ["src"]
+exclude=["extract_vcfs/gdc"]
 
 [tool.ruff.lint]
 extend-select = [
@@ -125,6 +125,7 @@ isort.required-imports = ["from __future__ import annotations"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
+"extract_vcfs/**" = ["T20"]
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"

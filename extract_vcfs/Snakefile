@@ -1,0 +1,184 @@
+from pathlib import Path
+from itertools import product as itprod
+
+#base_dir = "../../polyoutput/extract_vcfs_output"
+AADR_VERSION = "v54.1.p1"
+
+full_chroms = ["X", "Y"]
+full_chroms.extend(range(1,23))
+
+step_2_outputs = []
+step_3_outputs = []
+step_4_outputs = []
+step_7_outputs = []
+step_8_outputs = []
+step_9_outputs = []
+step_10_outputs = []
+step_2_versions = ["capture_only", "capture_SG"]
+step_2_refpops = ["gbr_ceu", "europe", "broad"]
+step_2_endings = ["pca.geno", "pca.ind", "pca.snp", "convertf.param", "pops_to_keep.tsv"]
+step_3_endings = ["smartpca_shrinkage.param", "smartpca_noshrinkage.param", "reference.pops"]
+for v, rp, end in itprod(step_2_versions, step_2_refpops, step_2_endings):
+    step_2_outputs.append(f"extracted/GB_{AADR_VERSION}_{v}_{rp}_{end}")
+    
+for v, rp, end in itprod(step_2_versions, step_2_refpops, step_3_endings):
+    step_3_outputs.append(f"extracted/GB_{AADR_VERSION}_{v}_{rp}_{end}")
+
+for v, rp, end in itprod(step_2_versions, step_2_refpops, ["shrinkage", "noshrinkage"]):
+    step_4_outputs.append(f"extracted/GB_{AADR_VERSION}_{v}_{rp}_pca_{end}.pdf")
+
+for v, end in itprod(step_2_versions, [".table", ".pdf"]):
+    step_7_outputs.append(f"extracted/GB_{AADR_VERSION}_{v}_sample_sizes{end}")
+
+for chr in full_chroms:
+    step_8_outputs.append(f"extracted/GB_{AADR_VERSION}_capture_SG_c{chr}.vcf")
+    step_9_outputs.append(f"extracted/GB_{AADR_VERSION}_capture_only_c{chr}.vcf")
+    step_10_outputs.append(f"extracted/GB_{AADR_VERSION}_capture_SG_c{chr}_filtered.vcf")
+    step_10_outputs.append(f"extracted/GB_{AADR_VERSION}_capture_only_c{chr}_filtered.vcf")
+
+rule all:
+    input:
+        step_10_outputs,
+        f"extracted/GB_{AADR_VERSION}_capture_only_inds.table",
+        f"extracted/GB_{AADR_VERSION}_capture_SG_inds.table",
+        step_4_outputs,
+        step_7_outputs,
+        f"extracted/GB_{AADR_VERSION}_capture_SG_map.pdf",
+        f"extracted/GB_{AADR_VERSION}_capture_only_map.pdf"
+
+
+
+rule setup:
+    output:
+        f"AADR/{AADR_VERSION}_HO/{AADR_VERSION}_HO_public.anno",
+        f"AADR/{AADR_VERSION}_HO/{AADR_VERSION}_HO_public.geno",
+        f"AADR/{AADR_VERSION}_HO/{AADR_VERSION}_HO_public.ind",
+        f"AADR/{AADR_VERSION}_HO/{AADR_VERSION}_HO_public.snp",
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.snp",
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.anno",
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.geno",
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.ind"
+    shell:
+        f"""
+        mkdir -p AADR
+        mkdir -p AADR/{AADR_VERSION}_HO
+        mkdir -p AADR/{AADR_VERSION}_1240K
+        cd AADR/{AADR_VERSION}_1240K
+        curl -L -o {AADR_VERSION}_1240K_public.anno https://dataverse.harvard.edu/api/access/datafile/7052552
+        curl -L -o {AADR_VERSION}_1240K_public.ind https://dataverse.harvard.edu/api/access/datafile/7052554
+        curl -L -o {AADR_VERSION}_1240K_public.snp https://dataverse.harvard.edu/api/access/datafile/7052555
+        curl -L -o {AADR_VERSION}_1240K_public.geno https://dataverse.harvard.edu/api/access/datafile/7052553
+        cd ../{AADR_VERSION}_HO
+        curl -L -o {AADR_VERSION}_HO_public.anno https://dataverse.harvard.edu/api/access/datafile/7052556
+        curl -L -o {AADR_VERSION}_HO_public.ind https://dataverse.harvard.edu/api/access/datafile/7052558
+        curl -L -o {AADR_VERSION}_HO_public.snp https://dataverse.harvard.edu/api/access/datafile/7052559
+        curl -L -o {AADR_VERSION}_HO_public.geno https://dataverse.harvard.edu/api/access/datafile/7052557
+        """
+
+rule step1:
+    input:
+        f"AADR/{AADR_VERSION}_HO/{AADR_VERSION}_HO_public.anno",
+        f"AADR/{AADR_VERSION}_HO/{AADR_VERSION}_HO_public.ind",
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.anno",
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.ind"
+    output:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.table",
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.ind"
+    shell:
+        """
+        mkdir -p extracted
+        python step1_subset_gb_anno.py
+        """
+
+rule step2:
+    input:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.table",
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.ind"
+    output:
+        step_2_outputs
+    shell:
+        "python step2_eigensoft_convertf_subset.py"
+    
+rule step3:
+    input:
+        step_2_outputs
+    output:
+        step_3_outputs
+    shell:
+        "python step3_eigensoft_smartpca_subset.py"
+
+rule step4:
+    input:
+        step_3_outputs,
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.table"
+    output:
+        step_4_outputs
+    shell:
+        "python step4_plot_pcas.py"
+
+rule step5:
+    input:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.table"
+    output:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_inds.table"
+    shell:
+        "python step5_filter_pca_outlier_manual.py"
+
+rule step6:
+    input:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.table"
+    output:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_map.pdf",
+        f"extracted/GB_{AADR_VERSION}_capture_only_map.pdf"
+    shell:
+        "python step6_plot_map.py"
+
+rule step7:
+    input:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_pre_pca_inds.table"
+    output:
+        step_7_outputs
+    shell:
+        "python step7_plot_sample_sizes.py"
+
+rule step8:
+    input:
+        f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public.snp",
+        f"extracted/GB_{AADR_VERSION}_capture_SG_inds.table"
+    output:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_inds.conv",
+        step_8_outputs
+    shell:
+        "python step8_extract_vcfs.py"
+
+rule step9:
+    input:
+        f"extracted/GB_{AADR_VERSION}_capture_SG_inds.table",
+        step_8_outputs
+    output:
+        f"extracted/GB_{AADR_VERSION}_capture_only_inds.table",
+        step_9_outputs
+    shell:
+        "python step9_extract_capture_only.py"
+
+rule step10:
+    input:
+        f"extracted/GB_{AADR_VERSION}_{{ver}}_c{{chr}}.vcf",
+        f"extracted/GB_{AADR_VERSION}_{{ver}}_inds.table"
+    output:
+        f"extracted/GB_{AADR_VERSION}_{{ver}}_c{{chr}}_filtered.vcf"
+    shell:
+        "python step10_filter_vcfs.py {input[0]} {input[1]} {output} -maf .05 --min_sample_density .1"
+
+
+        
+        
+        
+    
+        
+
+
+
+#figure out final file names
+#wildcard it up
+#buncha rules
