@@ -62,7 +62,7 @@ def diploToHaploVcf(inputVcf):
             # don't change it
 
     # write it to stdout
-    # header is alread in stdout, so just write the rest
+    # header is already in stdout, so just write the rest
     vcfFrame.to_csv(sys.stdout, sep="\t", index=False)
 
 

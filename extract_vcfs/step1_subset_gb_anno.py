@@ -193,13 +193,13 @@ def keepOnlyCapture(annoFrame):
 
     # both spellings exist
     captureMask = np.isin(annoFrame["Data_source"], ["1240K", "1240k"])
-    # check whether names are somewhat consitent with labeling
+    # check whether names are somewhat consistent with labeling
     assert not np.any(
         [((".SG" in x) or (".DG" in x)) for x in annoFrame[captureMask][GENETIC_ID]]
     )
     # this should be all the other ones
     shotgunMask = np.isin(annoFrame["Data_source"], ["Shotgun", "Shotgun.diploid"])
-    # check whether names are somewhat consitent with labeling
+    # check whether names are somewhat consistent with labeling
     assert np.all(
         [((".SG" in x) or (".DG" in x)) for x in annoFrame[shotgunMask][GENETIC_ID]]
     )
@@ -300,7 +300,7 @@ def createMockIndFile(inputHoIndFile, outputMockFile, focalFrame):
     )
 
     # clear all previous group data
-    # except for the reference populations that are suposed to stay
+    # except for the reference populations that are supposed to stay
     referenceMask = np.array([x in REFERENCE_POPS for x in aadrHoIndFrame["location"]])
     # don't include anything but the specific reference populations we want
     aadrHoIndFrame["location"][~referenceMask] = "NO"

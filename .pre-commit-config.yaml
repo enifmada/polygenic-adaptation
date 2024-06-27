@@ -50,6 +50,7 @@ repos:
     rev: "v2.2.6"
     hooks:
       - id: codespell
+        args: ["-i 3", "-w"]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: "v0.10.0.1"

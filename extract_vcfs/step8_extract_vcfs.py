@@ -12,7 +12,7 @@ AADR_ROOT = pathlib.Path(f"AADR/{AADR_VERSION}_1240K/{AADR_VERSION}_1240K_public
 AADR_SNP = pathlib.Path(f"{AADR_ROOT}.snp")
 GENETIC_ID = "Genetic_ID"
 
-# file specifiying individuals to extract
+# file specifying individuals to extract
 EXTRACTED_PREFIX = f"extracted/GB_{AADR_VERSION}_capture_SG"
 INDIVIDUALS_FILE = pathlib.Path(f"{EXTRACTED_PREFIX}_inds.table")
 

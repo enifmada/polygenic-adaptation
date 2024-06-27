@@ -88,7 +88,7 @@ def main():
         # get a mask for only these individuals
         genoMask = [(x in genoList) for x in anno["Data_source"]]
 
-        # plot smaples sizes for only the individuals with right genotyping
+        # plot samples sizes for only the individuals with right genotyping
         plotSampleSizes(
             anno[genoMask], SAMPLE_SIZES_TABLES[genoLabel], SAMPLE_SIZES_PDFS[genoLabel]
         )

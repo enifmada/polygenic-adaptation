@@ -52,7 +52,7 @@ can be used to customize input and output.
 
 #### 1. Extract annotation (required)
 
-Exectuing:
+Executing:
 
 ```
 python step1_subset_gb_anno.py
@@ -128,7 +128,7 @@ result from using only the individuals genotyped on the 1240K panel, whereas
 shotgun individuals. `broad`, `europe`, and `gbr_ceu` refer to the 1000G
 reference populations used, which are {`LWK`, `YRI`, `JPT`, `CHB`, `CEU`, `GBR`,
 `FIN`, `TSI`, `IBS`}, {`CEU`, `GBR`, `FIN`, `TSI`, `IBS`}, and {`CEU`, `GBR`},
-repsectively. Lastly, the analysis was performed using `shrinkage` or
+respectively. Lastly, the analysis was performed using `shrinkage` or
 `noshrinkage`.
 
 #### 5. Filter PCA outliers (required)
@@ -143,7 +143,7 @@ will remove outliers identified by inspecting the PCAs. Currently, this actually
 does not remove any individuals, but it renames necessary files for downstream
 analyses.
 
-#### 6. Plot maps indiciating sampling locations (optional)
+#### 6. Plot maps indicating sampling locations (optional)
 
 The command:
 
@@ -188,14 +188,14 @@ python step8_extract_vcfs.py
 ```
 
 extracts the genotypes of all individuals (**1240K capture** and **shotgun**)
-and stores them as VCFs. Specificially, this script produces a file
+and stores them as VCFs. Specifically, this script produces a file
 
 ```
 extracted/GB_v54.1_capture_SG_inds.table
 ```
 
 that contains the annotations for all extracted individuals (**1240K capture**
-and **shotgun**), most importanly, their `Genetic_ID` to cross reference with
+and **shotgun**), most importantly, their `Genetic_ID` to cross reference with
 the VCF and their sampling time `Date_mean`. In addition, the script generates
 the files
 
@@ -216,7 +216,7 @@ python step9_extract_capture_only.py
 ```
 
 subsets the data from the previous step to only the individuals with **1240K
-capture** genotypes. Specificially, this script produces the file
+capture** genotypes. Specifically, this script produces the file
 
 ```
 extracted/GB_v54.1_capture_only_inds.table
