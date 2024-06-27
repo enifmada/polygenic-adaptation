@@ -10,7 +10,7 @@ NUM_GB = 16
 
 def readCommands(commandFile):
     # read file
-    with pathlib.Path(commandFile).open() as ifs:
+    with pathlib.Path(commandFile).open(encoding="locale") as ifs:
         theLines = ifs.readlines()
 
     # go through and clean
@@ -26,13 +26,13 @@ def prepareSlurmScripts(commandList, metaSubmitScript, tmpDir):
     pathlib.Path(tmpDir).mkdir(parents=True)
 
     # set up meta script
-    with pathlib.Path(metaSubmitScript).open("w") as metafs:
+    with pathlib.Path(metaSubmitScript).open("w", encoding="locale") as metafs:
         # go through commands
         for cmdIdx, thisCmd in enumerate(commandList):
             # generic name
             thisName = f"slurm{cmdIdx}"
             thisScriptName = pathlib.Path(f"{tmpDir}/{thisName}.sbatch")
-            with pathlib.Path(thisScriptName).open("w") as ofs:
+            with pathlib.Path(thisScriptName).open("w", encoding="locale") as ofs:
                 # needs to be in script
                 ofs.write("#!/bin/bash\n")
                 # give it a name

@@ -124,7 +124,8 @@ def main():
     if Path(args_dict["input_path"]).suffix == ".csv":
         data_matrix = np.loadtxt(args_dict["input_path"], dtype=int)
     else:
-        pass
+        # equivalent of pass but the thing exists
+        data_matrix = np.zeros((1,))
     MIN_GRID_VAL = 1e-8
     pos_grid = np.geomspace(
         MIN_GRID_VAL, args_dict["grid_s_max"], args_dict["num_half_grid_points"]
@@ -154,7 +155,7 @@ def main():
     )
     if "snakemake" not in args_dict or not args_dict["snakemake"]:
         json_fname = f"{Path(args_dict['output_path']).with_suffix('')}_params.json"
-        with Path(json_fname).open("w") as file:
+        with Path(json_fname).open("w", encoding="locale") as file:
             jdump(args_dict, file)
 
 

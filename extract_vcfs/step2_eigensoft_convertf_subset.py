@@ -60,12 +60,12 @@ def callEigensoftConvert():
             pca_ind_file = pathlib.Path(f"{mockPrefix}_pca.ind")
 
             # prepare the files of populations that we want to keep
-            with pathlib.Path(to_keep_file).open("w") as ofs:
+            with pathlib.Path(to_keep_file).open("w", encoding="locale") as ofs:
                 for pop in np.concatenate((thisReference, thisMockPopulations)):
                     ofs.write(pop + "\n")
 
             # then prepare the parameter file for convertf
-            with pathlib.Path(convertf_param_file).open("w") as ofs:
+            with pathlib.Path(convertf_param_file).open("w", encoding="locale") as ofs:
                 ofs.write(
                     f"genotypename: {AADR_GENO}\n"
                     + f"snpname: {AADR_SNP}\n"

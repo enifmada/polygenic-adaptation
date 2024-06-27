@@ -114,7 +114,7 @@ def main():
         action="store_true",
         help="whether or not this script was run as part of a snakemake workflow. If so, do not save the params as a json because params.json already exists.",
     )
-    parser.add_argument("--donothing", help="confuse snakemake")
+    parser.add_argument("--donothing", action="store_true", help="confuse snakemake")
     args_dict = vars(parser.parse_args())
     actual_beta_params = {}
     if args_dict["beta_params"] is not None:
@@ -198,7 +198,7 @@ def main():
         json_fname = (
             f"{args_dict['output_directory']}/{args_dict['prefix']}_params.json"
         )
-        with Path(json_fname).open("w") as file:
+        with Path(json_fname).open("w", encoding="locale") as file:
             jdump(args_dict, file)
 
 

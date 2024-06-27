@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+from itertools import product as itprod
 
 import colorcet as cc
 import matplotlib.pyplot as plt
@@ -143,9 +144,9 @@ def plotPCA(
     plt.ylabel(f"PC2 ({varTwo*100:.2f}%)")
 
     # coord grid
-    if (minOne < 0) and (maxOne > 0):
+    if minOne < 0 < maxOne:
         plt.vlines(0, minTwo, maxTwo, linestyles="--", colors="black", lw=0.5)
-    if (minTwo < 0) and (maxTwo > 0):
+    if minTwo < 0 < maxTwo:
         plt.hlines(0, pcOne.min(), pcOne.max(), linestyles="--", colors="black", lw=0.5)
 
     plt.savefig(pca_plot_file, bbox_inches="tight")
@@ -164,100 +165,100 @@ def allPcaPlots():
 
     # go through all combinations
     # for reference in ['broad', 'europe']:
-    for reference in ["broad", "europe", "gbr_ceu"]:
-        for to_shrink in ["shrinkage", "noshrinkage"]:
-            for genotyping in ["capture_only", "capture_SG"]:
-                axtext = ""
-                if to_shrink == "shrinkage" and genotyping == "capture_only":
-                    if reference == "broad":
-                        axtext = "A"
-                    elif reference == "europe":
-                        axtext = "B"
-                plt.figure(figsize=(3.1, 3.1), layout="constrained")
-                # load specific pca files
-                eval_file = pathlib.Path(
-                    f"{EXTRACTED_PREFIX}_{genotyping}_{reference}_pca_{to_shrink}.eval"
-                )
-                evec_file = pathlib.Path(
-                    f"{EXTRACTED_PREFIX}_{genotyping}_{reference}_pca_{to_shrink}.evec"
-                )
+    for reference, to_shrink, genotyping in itprod(
+        ["broad", "europe", "gbr_ceu"],
+        ["shrinkage", "noshrinkage"],
+        ["capture_only", "capture_SG"],
+    ):
+        axtext = ""
+        if to_shrink == "shrinkage" and genotyping == "capture_only":
+            if reference == "broad":
+                axtext = "A"
+            elif reference == "europe":
+                axtext = "B"
+        plt.figure(figsize=(3.1, 3.1), layout="constrained")
+        # load specific pca files
+        eval_file = pathlib.Path(
+            f"{EXTRACTED_PREFIX}_{genotyping}_{reference}_pca_{to_shrink}.eval"
+        )
+        evec_file = pathlib.Path(
+            f"{EXTRACTED_PREFIX}_{genotyping}_{reference}_pca_{to_shrink}.evec"
+        )
 
-                evals = np.array(pd.read_csv(eval_file, header=None)).flatten()
-                evecFrame = pd.read_csv(evec_file, sep="\s+")
+        evals = np.array(pd.read_csv(eval_file, header=None)).flatten()
+        evecFrame = pd.read_csv(evec_file, sep=r"\s+")
 
-                # get the data in convenient format
-                pcs = np.array(evecFrame.iloc[:, :-1])
-                popLabels = np.array(evecFrame.iloc[:, -1])
-                ids = np.array(evecFrame.index)
+        # get the data in convenient format
+        pcs = np.array(evecFrame.iloc[:, :-1])
+        popLabels = np.array(evecFrame.iloc[:, -1])
+        ids = np.array(evecFrame.index)
 
-                # leverage pub labels from just ancients to whole pca sample
-                tmp_anno_ids = list(anno["Genetic_ID"])
-                leveraged_pubs = np.array(
-                    [
-                        ""
-                        if (x not in tmp_anno_ids)
-                        else (short_pubs[tmp_anno_ids.index(x)])
-                        for x in ids
-                    ]
-                )
+        # leverage pub labels from just ancients to whole pca sample
+        tmp_anno_ids = list(anno["Genetic_ID"])
+        leveraged_pubs = np.array(
+            [
+                "" if (x not in tmp_anno_ids) else (short_pubs[tmp_anno_ids.index(x)])
+                for x in ids
+            ]
+        )
 
-                # have some categories for plotting
-                categories = []
+        # have some categories for plotting
+        categories = []
 
-                # publication categories
-                colorIdx = 0
-                for pop in sorted(set(popLabels)):
-                    thisPopMask = popLabels == pop
-                    if pop in ["FOCAL_ANCIENT_SG", "FOCAL_ANCIENT_CAPTURE"]:
-                        short_pop = "ANC_CAP" if "CAPTURE" in pop else "ANC_SG"
-                        # special
-                        for pub in set(short_pubs):
-                            thisPubMask = leveraged_pubs == pub
-                            if (thisPopMask & thisPubMask).sum() > 0:
-                                categories.append(
-                                    (
-                                        thisPopMask & thisPubMask,
-                                        short_pop + "_" + pub,
-                                        getDefaultMarker(colorIdx),
-                                        getDefaultColor(colorIdx),
-                                    )
-                                )
-                                colorIdx += 1
-                    else:
-                        # regular
+        # publication categories
+        colorIdx = 0
+        for pop in sorted(set(popLabels)):
+            thisPopMask = popLabels == pop
+            if pop in ["FOCAL_ANCIENT_SG", "FOCAL_ANCIENT_CAPTURE"]:
+                short_pop = "ANC_CAP" if "CAPTURE" in pop else "ANC_SG"
+                # special
+                for pub in set(short_pubs):
+                    thisPubMask = leveraged_pubs == pub
+                    if (thisPopMask & thisPubMask).sum() > 0:
                         categories.append(
                             (
-                                thisPopMask,
-                                pop,
+                                thisPopMask & thisPubMask,
+                                short_pop + "_" + pub,
                                 getDefaultMarker(colorIdx),
                                 getDefaultColor(colorIdx),
                             )
                         )
                         colorIdx += 1
-
-                # plot a pca with all samples
-                pca_plot_file = pathlib.Path(
-                    f"{EXTRACTED_PREFIX}_{genotyping}_{reference}_pca_{to_shrink}.pdf"
+            else:
+                # regular
+                categories.append(
+                    (
+                        thisPopMask,
+                        pop,
+                        getDefaultMarker(colorIdx),
+                        getDefaultColor(colorIdx),
+                    )
                 )
-                plotCentroid = reference != "broad"
-                plotPCA(
-                    pcs,
-                    evals,
-                    categories,
-                    pca_plot_file,
-                    plotCentroid=plotCentroid,
-                    axtext=axtext,
-                )
+                colorIdx += 1
 
-                # # and for the broad analysis, we also plot a zoom on ancient + europe
-                # if (reference == 'broad'):
-                #     zoomed_pops = ['FOCAL_ANCIENT', 'CEU.SG', 'GBR.SG', 'FIN.SG', 'TSI.SG', 'IBS.SG']
-                #     selectMask = numpy.array ([x in zoomed_pops for x in popLabels])
-                #     # try to omit outliers (certainly for the zoom)
-                #     selectMask[(pcs[:,0] > 0) & (popLabels == 'FOCAL_ANCIENT')] = False
-                #     print (ids[(pcs[:,0] > 0) & (popLabels == 'FOCAL_ANCIENT')])
-                #     pca_plot_file = pathlib.Path (f"{EXTRACTED_PREFIX}_{reference}_pca_{to_shrink}_zoom.pdf")
-                #     plotPCA (f"PCA: {reference}, {to_shrink}, zoom", pcs, evals, categories, pca_plot_file, selectMask=selectMask)
+        # plot a pca with all samples
+        pca_plot_file = pathlib.Path(
+            f"{EXTRACTED_PREFIX}_{genotyping}_{reference}_pca_{to_shrink}.pdf"
+        )
+        plotCentroid = reference != "broad"
+        plotPCA(
+            pcs,
+            evals,
+            categories,
+            pca_plot_file,
+            plotCentroid=plotCentroid,
+            axtext=axtext,
+        )
+
+        # # and for the broad analysis, we also plot a zoom on ancient + europe
+        # if (reference == 'broad'):
+        #     zoomed_pops = ['FOCAL_ANCIENT', 'CEU.SG', 'GBR.SG', 'FIN.SG', 'TSI.SG', 'IBS.SG']
+        #     selectMask = numpy.array ([x in zoomed_pops for x in popLabels])
+        #     # try to omit outliers (certainly for the zoom)
+        #     selectMask[(pcs[:,0] > 0) & (popLabels == 'FOCAL_ANCIENT')] = False
+        #     print (ids[(pcs[:,0] > 0) & (popLabels == 'FOCAL_ANCIENT')])
+        #     pca_plot_file = pathlib.Path (f"{EXTRACTED_PREFIX}_{reference}_pca_{to_shrink}_zoom.pdf")
+        #     plotPCA (f"PCA: {reference}, {to_shrink}, zoom", pcs, evals, categories, pca_plot_file, selectMask=selectMask)
 
 
 def main():

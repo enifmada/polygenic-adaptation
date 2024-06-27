@@ -41,7 +41,7 @@ def performPca():
 
             # prepare the reference population file
             reference_file = pathlib.Path(f"{mockPrefix}_reference.pops")
-            with pathlib.Path(reference_file).open("w") as ofs:
+            with pathlib.Path(reference_file).open("w", encoding="locale") as ofs:
                 for pop in thisReference:
                     ofs.write(pop + "\n")
 
@@ -97,7 +97,9 @@ def performPca():
                     raise AssertionError()
 
                 # write the param file
-                with pathlib.path(smartpca_param_file).open("w") as ofs:
+                with pathlib.Path(smartpca_param_file).open(
+                    "w", encoding="locale"
+                ) as ofs:
                     ofs.write(paramString)
 
                 # and run smartpca

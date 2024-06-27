@@ -10,7 +10,7 @@ import pandas as pd
 
 def diploToHaploVcf(inputVcf):
     # we need the comments at the beginning of the vcf file
-    with Path(inputVcf).open() as ifs:
+    with Path(inputVcf).open(encoding="locale") as ifs:
         for line in ifs:
             # this allows us to get the vcf header into the dataframe
             if line.startswith("##"):

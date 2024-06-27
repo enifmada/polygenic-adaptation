@@ -49,7 +49,7 @@ def extractCaptureOnly():
     captureOnlyIDs = np.array(annoCaptureSG[captureOnlyMask]["Genetic_ID"])
 
     # write a file with IDs, cause vcftools needs that
-    with pathlib.Path(TMP_ID_FILE).open("w") as ofs:
+    with pathlib.Path(TMP_ID_FILE).open("w", encoding="locale") as ofs:
         ofs.write("\n".join(captureOnlyIDs) + "\n")
 
     # and extract these individuals out of each VCF file

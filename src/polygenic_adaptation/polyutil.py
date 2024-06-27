@@ -131,12 +131,6 @@ def generate_fname(**kwargs):
     return fname[:-1]
 
 
-class snakemake:
-    def __init__(self, input: list, output: list):
-        self.input = input
-        self.output = output
-
-
 def vcf_to_useful_format(vcf_file, sample_times_file, years_per_gen=28.1, force=None):
     sample_times_ordered = np.copy(sample_times_file)
     sample_times_ordered[:, 1] //= years_per_gen
@@ -164,9 +158,8 @@ def vcf_to_useful_format(vcf_file, sample_times_file, years_per_gen=28.1, force=
     big_final_table = np.zeros((1, sample_times.shape[0] * 3))
     for chrom in np.unique(chroms):
         final_table = np.zeros(((chroms == chrom).sum(), sample_times.shape[0] * 3))
-        for sample_i, sample_time in enumerate(sample_times):
+        for sample_i in range(sample_times.shape[0]):
             sample_indices = np.where(sample_i == sample_idxs)[0]
-            np.where(sample_time == sample_times)[0]
             assert (
                 vcf_file["samples"][sample_indices]
                 == sample_times_ordered[sample_indices, 0]

@@ -38,7 +38,7 @@ def main():
 
     output_bigstr = ""
     # we need the comments at the beginning of the vcf file
-    with Path(args.input_vcf).open() as ifs:
+    with Path(args.input_vcf).open(encoding="locale") as ifs:
         for line in ifs:
             # this allows us to get the vcf header into the dataframe
             if line.startswith("##"):
@@ -80,7 +80,7 @@ def main():
     vcfFrame = vcfFrame[combo_mask]
     # write the csv to the output string
     output_bigstr += vcfFrame.to_csv(sep="\t", index=False)
-    with Path(args.output_vcf).open("w") as file:
+    with Path(args.output_vcf).open("w", encoding="locale") as file:
         file.write(output_bigstr)
 
 

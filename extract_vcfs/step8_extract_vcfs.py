@@ -25,12 +25,12 @@ def extractTimeSeries():
     # load the individuals and make an individuals file for conversion
     conversionIndFile = pathlib.Path(f"{EXTRACTED_PREFIX}_inds.conv")
     individualsFrame = pd.read_csv(INDIVIDUALS_FILE, sep="\t")
-    with pathlib.Path(conversionIndFile).open("w") as ofs:
+    with pathlib.Path(conversionIndFile).open("w", encoding="locale") as ofs:
         for thisInd in individualsFrame[GENETIC_ID]:
             ofs.write(f"{thisInd}\n")
 
     # load all the snps
-    snpFrame = pd.read_csv(AADR_SNP, sep="\s+")
+    snpFrame = pd.read_csv(AADR_SNP, sep=r"\s+")
     chromHist = collections.Counter(snpFrame.iloc[:, 1])
     # make sure all chromosomes accounted for
     assert len(chromHist.keys()) <= 24, len(chromHist.keys())
@@ -52,7 +52,7 @@ def extractTimeSeries():
         # make a snpfile for eigenstrat
         conversionSnpFile = pathlib.Path(f"{EXTRACTED_PREFIX}_c{chromName}.snps")
         thisSnpFrame = snpFrame.loc[snpFrame.iloc[:, 1] == c]
-        with pathlib.path(conversionSnpFile).open("w") as ofs:
+        with pathlib.Path(conversionSnpFile).open("w", encoding="locale") as ofs:
             for thisSnp in thisSnpFrame.iloc[:, 0]:
                 ofs.write(f"{thisSnp}\n")
 

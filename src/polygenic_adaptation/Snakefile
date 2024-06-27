@@ -65,11 +65,8 @@ rule run_grid:
 
 rule analyze_grids:
     input:
-        output_grids,
-        output_betas,
-        json_file_loc
+        output_grids,output_betas,json_file_loc
     output:
-        base_analysis_path+"confusion_table.csv",
-        base_plots_path+"estimated_gradient.pdf"
-    script:
-        "analyze_grids.py"
+        base_analysis_path+"confusion_table.csv",base_plots_path+"estimated_gradient.pdf"
+    shell:
+        "python analyze_grids.py -i {input} -o {output}"
