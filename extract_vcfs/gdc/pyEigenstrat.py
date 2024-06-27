@@ -8,7 +8,7 @@
 #
 # files named root.{ind,snp,geno} either packed or unpacked
 #
-# > data=pyEigenstrat.load("root", [pops=[], inds=[], snps=[]])     
+# > data=pyEigenstrat.load("root", [pops=[], inds=[], snps=[]])
 # to load the data - with optionally including only certain populations
 # individuals or snps
 #
@@ -16,39 +16,39 @@
 # to load all the data or iterate line by line (snp by snp) without loading
 # the whole file into memory:
 # > for snp in data: print(snp)
-# 
+#
 ################################################################################
 # packedancestrymap format
 #
 #
-# nind # individuals (samples) 
-# nsnp # snps 
+# nind # individuals (samples)
+# nsnp # snps
 #
-# 1. 
-# record len (rlen) 
+# 1.
+# record len (rlen)
 #
-# Here is a C-fragment 
+# Here is a C-fragment
 #  y = (double) (nind * 2) / (8 * (double) sizeof (char)) ;
 #   rlen = lround(ceil(y)) ;
 #   rlen = MAX(rlen, 48)  ;
 #
-# The genotype file will contain 1 header record of rlen bytes and then  
-# nsnp records of genotype data.  
+# The genotype file will contain 1 header record of rlen bytes and then
+# nsnp records of genotype data.
 #
-# a) Header record 
+# a) Header record
 #
-# sprintf(hdr, "GENO %7d %7d %x %x", nind, nsnp, ihash, shash) 
-#  wwhere ihash and shash are hash values whose calculation we don't describe hhere. 
+# sprintf(hdr, "GENO %7d %7d %x %x", nind, nsnp, ihash, shash)
+#  wwhere ihash and shash are hash values whose calculation we don't describe hhere.
 #
-# b) data records 
-# genotype values are packed left to right across the record.  
-# Order 
+# b) data records
+# genotype values are packed left to right across the record.
+# Order
 # byte 1:  (first sample, second sample, ...
-# byte 2:  (fourth sample ... 
+# byte 2:  (fourth sample ...
 #
-# Values   00 = 0 
+# Values   00 = 0
 #          01 = 1
-#          10 = 2 
+#          10 = 2
 #          11 = 3
 # And the last byte is padded with 11 if necessary
 #
@@ -63,7 +63,7 @@ import numpy as np
 
 # datatype definitions
 dt_snp1=np.dtype([("ID", np.str_, 16), ("CHR", np.str_, 2), ("POS", np.int32)])
-dt_snp2=np.dtype([("ID", np.str_, 16), ("CHR", np.str_, 2), ("POS", np.int32), 
+dt_snp2=np.dtype([("ID", np.str_, 16), ("CHR", np.str_, 2), ("POS", np.int32),
                   ("REF", np.str_, 1), ("ALT", np.str_, 1)])
 dt_ind=np.dtype([("IND", np.str_, 32), ("POP", np.str_, 32)])
 
@@ -86,13 +86,13 @@ def load(file_root, pops=None, inds=None, exclude_inds=None, snps=None):
 
 class data:
     """
-    Base class.   
+    Base class.
     """
 
     def __init__(self, file_root, pops=None, inds=None, exclude_inds=None, snps=None):
         """
         We expect to see files file_root.{snp,ind,geno}. the .geno
-        file might be either packed or unpacked.  
+        file might be either packed or unpacked.
         """
 
         snp,snp_include=load_snp_file(file_root, snps)
@@ -105,20 +105,20 @@ class data:
         self._snp_include=snp_include
         self._ind_include=ind_include
 
-        # Genotypes might be set later, geno file used for iterator. 
+        # Genotypes might be set later, geno file used for iterator.
         self._geno=None
         self._geno_file=self.open_geno_file(file_root)
-        # Which snp are we on. 
+        # Which snp are we on.
         self._isnp=0
-        
+
     def __iter__(self):
         return self
 
-    # Interface follows: 
-    
+    # Interface follows:
+
     def open_geno_file(self, file_root):
         """
-        Open the genotype file. 
+        Open the genotype file.
         """
         msg = "Don't call the base class"
         raise NotImplementedError(msg)
@@ -126,7 +126,7 @@ class data:
     def geno(self):
         """
         If this is called, load the whole genotype matrix, and return it
-        buffer it in case we want to load it again. 
+        buffer it in case we want to load it again.
         """
         msg = "Don't call the base class"
         raise NotImplementedError(msg)
@@ -141,33 +141,33 @@ class data:
 
 class unpacked_data(data):
     """
-    Read unpacked data  
+    Read unpacked data
     """
-        
+
     def open_geno_file(self, file_root):
         """
-        Open the genotype file. 
+        Open the genotype file.
         """
         return open(file_root+".geno")
 
     def geno(self):
         """
         If this is called, load the whole genotype matrix, and return it
-        buffer it in case we want to load it again. 
+        buffer it in case we want to load it again.
         """
         if self._geno is not None:
             return self._geno
 
-        geno=np.genfromtxt(self._file_root+".geno", dtype='i1', delimiter=1, 
+        geno=np.genfromtxt(self._file_root+".geno", dtype='i1', delimiter=1,
                            usecols=np.where(self._ind_include)[0])
 
         # If we only loaded one individual, don't drop the second dimension.
         if len(geno.shape)==1: geno.shape=(geno.shape[0],1)
-        
+
         geno=geno[self._snp_include,:]
         self._geno=geno
-        return geno 
-    
+        return geno
+
     # This is the key here ..
     def __next__(self):
         while True:
@@ -175,7 +175,7 @@ class unpacked_data(data):
             self._isnp += 1
             if self._snp_include[self._isnp-1]:
                 break
-            
+
         gt = np.array(list(line[:-1]), dtype='i1')
         return gt[self._ind_include]
 
@@ -184,30 +184,30 @@ class unpacked_data(data):
 
 class packed_data(data):
     """
-    Read packed data  
+    Read packed data
     """
-        
+
     def open_geno_file(self, file_root):
         """
-        Open the genotype file (in binary mode). Read the header. 
+        Open the genotype file (in binary mode). Read the header.
         """
         geno_file=open(file_root+".geno", "rb")
         header=geno_file.read(20)         #Ignoring hashes
         if header.split()[0] != b"GENO":
             msg = "This does not look like a packedancestrymap file"
             raise Exception(msg)
-        nind,nsnp=(int(x) for x in header.split()[1:3])        
+        nind,nsnp=(int(x) for x in header.split()[1:3])
 
         self._nind=nind
         self._nsnp=nsnp
         self._rlen=max(48,int(np.ceil(nind*2/8)))    #assuming sizeof(char)=1 here
         geno_file.seek(self._rlen)         #set pointer to start of genotypes
         return geno_file
-                        
+
     def geno(self):
         """
         If this is called, load the whole genotype matrix, and return it
-        buffer it in case we want to load it again. 
+        buffer it in case we want to load it again.
         """
         if self._geno is not None:
             return self._geno
@@ -218,13 +218,13 @@ class packed_data(data):
         geno=2*geno[:,::2]+geno[:,1::2]
         geno=geno[:,self._ind_include]
         geno[geno==3]=9                       #set missing values
-        
+
         # If we only loaded one individual, don't drop the second dimension.
         if len(geno.shape)==1: geno.shape=(geno.shape[0],1)
-        
+
         geno=geno[self._snp_include,:]
         self._geno=geno
-        return geno 
+        return geno
 
     def __next__(self):
 
@@ -240,7 +240,7 @@ class packed_data(data):
         gt=2*gt_bits[::2]+gt_bits[1::2]
         gt=gt[:self._nind][self._ind_include]
         gt[gt==3]=9                       #set missing values
-        
+
         return gt
 
 ###########################################################################
@@ -248,7 +248,7 @@ class packed_data(data):
 
 def load_snp_file(file_root, snps=None):
     """
-    Load a .snp file into the right format. 
+    Load a .snp file into the right format.
     """
     snp_file=open(file_root+".snp")
     line=snp_file.readline()
@@ -270,7 +270,7 @@ def load_snp_file(file_root, snps=None):
     if snps is not None:
         include=np.in1d(snp["ID"], snps)
         snp=snp[include]
-        
+
     return snp,include
 
 ###########################################################################
@@ -278,7 +278,7 @@ def load_snp_file(file_root, snps=None):
 def load_ind_file(file_root, pops=None, inds=None, exclude_inds=None):
     """
     Load a .ind file, restricting to the union of specified
-    individuals and individuals in the specified populations. 
+    individuals and individuals in the specified populations.
     """
     ind=np.genfromtxt(file_root+".ind", dtype=dt_ind, usecols=(0,2))   # ignore sex
 
@@ -291,9 +291,8 @@ def load_ind_file(file_root, pops=None, inds=None, exclude_inds=None):
             include=np.logical_or(include, np.in1d(ind["IND"], inds))
         if exclude_inds:
             include=np.logical_and(include, ~np.in1d(ind["IND"], exclude_inds))
-            
+
     ind=ind[include]
     return ind,include
 
 ###########################################################################
-

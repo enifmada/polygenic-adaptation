@@ -20,7 +20,7 @@ step_2_endings = ["pca.geno", "pca.ind", "pca.snp", "convertf.param", "pops_to_k
 step_3_endings = ["smartpca_shrinkage.param", "smartpca_noshrinkage.param", "reference.pops"]
 for v, rp, end in itprod(step_2_versions, step_2_refpops, step_2_endings):
     step_2_outputs.append(f"extracted/GB_{AADR_VERSION}_{v}_{rp}_{end}")
-    
+
 for v, rp, end in itprod(step_2_versions, step_2_refpops, step_3_endings):
     step_3_outputs.append(f"extracted/GB_{AADR_VERSION}_{v}_{rp}_{end}")
 
@@ -98,7 +98,7 @@ rule step2:
         step_2_outputs
     shell:
         "python step2_eigensoft_convertf_subset.py"
-    
+
 rule step3:
     input:
         step_2_outputs
@@ -171,11 +171,11 @@ rule step10:
         "python step10_filter_vcfs.py {input[0]} {input[1]} {output} -maf .05 --min_sample_density .1"
 
 
-        
-        
-        
-    
-        
+
+
+
+
+
 
 
 

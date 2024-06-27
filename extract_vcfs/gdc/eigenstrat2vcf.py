@@ -1,6 +1,6 @@
 # original downloaded from https://github.com/mathii/gdc
 #eigenstrat (packed or unpacked) to vcf
-#Writes to stdout, unlike many of these scripts. 
+#Writes to stdout, unlike many of these scripts.
 #Usage: python eigenstrat2vcf.py -r root [options]
 #Data files are root.snp, root.ind and root.geno
 from __future__ import annotations
@@ -47,18 +47,17 @@ def main(options):
 
     data= pyEigenstrat.load(options.root, inds=inds, pops=pops, snps=snps)
 
-    #Write header. 
+    #Write header.
 
     #Now line by line write data
     for i,d in enumerate(data):
         this_snp=data.snp[i]
-        line="\t".join([this_snp["CHR"], str(this_snp["POS"]), this_snp["ID"], 
+        line="\t".join([this_snp["CHR"], str(this_snp["POS"]), this_snp["ID"],
                          this_snp["REF"], this_snp["ALT"], "100", "PASS", ".", "GT" ])
         line=line+"\t"+"\t".join([GT_DICT[x] for x in d])
-        
+
 ################################################################################
 
 if __name__=="__main__":
     options=parse_options()
     main(options)
-
