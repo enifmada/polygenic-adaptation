@@ -13,7 +13,7 @@ nox.options.sessions = ["lint", "pylint", "tests"]
 nox.options.default_venv_backend = "uv|virtualenv"
 
 
-@nox.session(python=["3.11","3.12"])
+@nox.session(python=["3.11", "3.12"])
 def lint(session: nox.Session) -> None:
     """
     Run the linter.
@@ -24,7 +24,7 @@ def lint(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=["3.11","3.12"])
+@nox.session(python=["3.11", "3.12"])
 def pylint(session: nox.Session) -> None:
     """
     Run PyLint.
@@ -38,7 +38,7 @@ def pylint(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=["3.11","3.12"])
+@nox.session(python=["3.11", "3.12"])
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
