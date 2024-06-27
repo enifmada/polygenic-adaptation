@@ -30,7 +30,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["snakemake>=8.0.0","numpy>=1.21.0,<2.0","scipy>=1.11","matplotlib","numba","tqdm","colorcet","Cartopy>=0.23","jinja2","cycler","seaborn>=0.13","scikit-allel>=1.3"]
+dependencies = ["numpy>=1.21.0,<2.0","scipy>=1.11","matplotlib","numba","tqdm","colorcet","Cartopy>=0.23","jinja2","cycler","seaborn>=0.13","scikit-allel>=1.3"]
 
 [project.optional-dependencies]
 test = [
@@ -126,9 +126,6 @@ isort.required-imports = ["from __future__ import annotations"]
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
 "extract_vcfs/**" = ["T20"]
-
-[tool.mypy]
-plugins = "numpy.typing.mypy_plugin"
 
 [tool.pylint]
 py-version = "3.12.2"
