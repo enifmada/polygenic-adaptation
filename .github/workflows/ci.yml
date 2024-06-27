@@ -27,13 +27,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Clear pip cache
+        run: |
+          rm -rf ~/.cache/pip
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: --hook-stage manual --all-files
       - name: Run PyLint
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
-          pipx run nox -s pylint
+          pipx run nox -v -s pylint
 
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
