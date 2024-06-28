@@ -20,13 +20,16 @@ jobs:
   pre-commit:
     name: Format
     runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            python-version: [3.12]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: --hook-stage manual --all-files
@@ -36,7 +39,7 @@ jobs:
       - name: Run PyLint
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
-          pipx install nox --python ${{ python-version }}
+          pipx install nox --python ${{ matrix.python-version }}
           nox -v -s pylint
 
   checks:
