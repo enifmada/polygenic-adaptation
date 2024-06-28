@@ -32,9 +32,9 @@ def pylint(session: nox.Session) -> None:
     # This needs to be installed into the package environment, and is slower
     # than a pre-commit check
     session.install(".", "pylint")
-    session.run("pylint", "src/polygenic_adaptation", *session.posargs)
+    session.run("pylint", "src/polygenic_adaptation", "--rcfile=.pylintrc",*session.posargs)
     session.run(
-        "pylint", "extract_vcfs", "--ignore-paths=extract_vcfs/gdc", *session.posargs
+        "pylint", "extract_vcfs", "--rcfile=.pylintrc", "--ignore-paths=extract_vcfs/gdc", *session.posargs
     )
 
 
