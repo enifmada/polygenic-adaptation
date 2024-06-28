@@ -36,6 +36,7 @@ jobs:
       - name: Run PyLint
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
+          pipx install nox
           nox -v -s pylint
 
   checks:
