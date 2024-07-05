@@ -169,3 +169,4 @@ extract_vcfs/.snakemake
 #scratch files
 src/polygenic_adaptation/analyze_grids_no_smk.py
 src/polygenic_adaptation/scratch.py
+src/polygenic_adaptation/investigating_grids.py
