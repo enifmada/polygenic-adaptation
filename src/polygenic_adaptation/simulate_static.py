@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from itertools import product as itprod
 from json import dump as jdump
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from polyutil import (
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from polygenic_adaptation.polyutil import (
     generate_betas,
     generate_fname,
     generate_initial_condition,
@@ -179,6 +182,8 @@ def main():
 
             fig, axs = plt.subplots(1, 1, figsize=(10, 10), layout="constrained")
             axs.plot(freqs.T)
+            axs.plot(freqs[35, :], lw=5, color="k")
+            axs.plot(freqs[63, :], lw=5, color="b")
             fig.savefig(
                 f"{args_dict['output_directory']}/{args_dict['prefix']}{base_fname}_rep{i}_freqs.pdf",
                 format="pdf",

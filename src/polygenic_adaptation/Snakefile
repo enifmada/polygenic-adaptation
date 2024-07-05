@@ -3,16 +3,20 @@ import json
 from itertools import product as itprod
 from polyutil import generate_fname
 
-base_dir = Path("../../../polyoutput")
-data_dir = base_dir/"sims/data"
-plots_dir = base_dir/"sims/plots"
-analysis_dir = base_dir/"sims/analysis"
-
-json_file_loc = "../../simulation_params/normal_sim_params.json"
+json_file_loc = "../../simulation_params/EM_comparison_params.json"
 json_params = json.loads(Path(json_file_loc).read_text())
 if "hmm_Ne" not in json_params.keys():
     json_params["hmm_Ne"] = json_params["Ne"]
-
+base_dir = Path("../../../polyoutput")
+base_data_dir = base_dir/"sims/data"
+base_plots_dir = base_dir/"sims/plots"
+base_analysis_dir = base_dir/"sims/analysis"
+(base_data_dir/json_params['file_prefix'][:-1]).mkdir(parents=True,exist_ok=True)
+(base_plots_dir/json_params['file_prefix'][:-1]).mkdir(parents=True,exist_ok=True)
+(base_analysis_dir/json_params['file_prefix'][:-1]).mkdir(parents=True,exist_ok=True)
+data_dir = base_data_dir/json_params['file_prefix'][:-1]
+plots_dir = base_plots_dir/json_params['file_prefix'][:-1]
+analysis_dir = base_analysis_dir/json_params['file_prefix'][:-1]
 base_csv_path = f"{data_dir}/{json_params['file_prefix']}"
 base_plots_path = f"{plots_dir}/{json_params['file_prefix']}"
 base_analysis_path = f"{analysis_dir}/{json_params['file_prefix']}"

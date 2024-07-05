@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import numpy as np
-from polyutil import generate_states_new, get_uq_a_exps
+from numba import njit
+from scipy.optimize import minimize as spoptmin
 from scipy.stats import beta, binom, norm
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from polygenic_adaptation.polyutil import generate_states_new, get_uq_a_exps
 
 
 class HMM:
@@ -20,6 +27,8 @@ class HMM:
         self.integral_bounds = self.bounds.copy()
         self.integral_bounds[0] = -np.inf
         self.integral_bounds[-1] = np.inf
+
+        self.init_init_params = np.zeros(2)
 
         # self.a_ij = P(S_t+1 = j|S_t = i)
         if self.init_cond == "uniform":
@@ -87,7 +96,7 @@ class HMM:
         int_matrix /= np.sum(int_matrix)
         return int_matrix
 
-    def compute_multiple_ll(self, s1, s2, data_matrix):
+    def compute_multiple_ll(self, s1, s2, data_matrix, init_states=None):
         sample_locs_array = data_matrix[:, ::3]
         nts_array = data_matrix[:, 1::3]
         obs_counts_array = data_matrix[:, 2::3]
@@ -138,9 +147,15 @@ class HMM:
         uq_a_powers = np.unique(sample_time_diffs)
         uq_a_exps = get_uq_a_exps(ll_a, uq_a_powers)
         ll_cs = np.ones((ll_T, ll_nloc))
-        ll_alphas_tilde = np.einsum(
-            "i, ni->in", self.init_state, ll_bpmf_new[ll_a_t_to_bpmf_idx[:, 0], :]
-        )
+        if init_states is not None:
+            assert init_states.shape == (ll_nloc, self.N)
+            ll_alphas_tilde = np.einsum(
+                "ni, ni -> in", init_states, ll_bpmf_new[ll_a_t_to_bpmf_idx[:, 0], :]
+            )
+        else:
+            ll_alphas_tilde = np.einsum(
+                "i, ni->in", self.init_state, ll_bpmf_new[ll_a_t_to_bpmf_idx[:, 0], :]
+            )
         ll_cs[0, :] = 1.0 / np.sum(ll_alphas_tilde, axis=0)
         ll_alphas_hat = np.einsum("n, in -> in", ll_cs[0, :], ll_alphas_tilde)
         for i, t in enumerate(sample_times[1:]):
@@ -154,3 +169,141 @@ class HMM:
             ll_alphas_hat = np.einsum("n, in -> in", ll_cs[t, :], ll_alphas_tilde)
             assert np.all(np.isclose(np.sum(ll_alphas_hat, axis=0), 1.0))
         return -np.sum(np.log(ll_cs), axis=0)
+
+    def beta_opt_func(self, beta_params, gammas):
+        beta_density = beta.logpdf(self.gs[1:-1], beta_params[0], beta_params[1])
+        betaneginf = np.isneginf(beta_density)
+        if np.any(betaneginf):
+            beta_density[betaneginf] = -1000000
+        return -np.sum(gammas[1:-1] * beta_density)
+
+    def update_init_beta(self, gammas, init_params, min_init_val):
+        fit_alpha_2, fit_beta_2 = spoptmin(
+            self.beta_opt_func,
+            np.array(init_params) + 1,
+            args=gammas,
+            bounds=((0, None), (0, None)),
+            method="Nelder-Mead",
+        )["x"]
+        init_state = self.beta_to_state_func((fit_alpha_2, fit_beta_2), min_init_val)
+        return init_state, (fit_alpha_2, fit_beta_2)
+
+    def beta_to_state_func(self, fit_params, min_init_val):
+        fit_alpha, fit_beta = fit_params
+        ubounds = beta.cdf(self.bounds[1:], fit_alpha, fit_beta)
+        lbounds = beta.cdf(self.bounds[:-1], fit_alpha, fit_beta)
+        state_vals = ubounds - lbounds
+        return self.clip_and_renormalize(state_vals, min_init_val)
+
+    @staticmethod
+    @njit(fastmath=True)
+    def forward_one_numba(init_state, trans_matrix, a_t_to_bpmf, bpmf):
+        N = init_state.shape[0]
+        T = a_t_to_bpmf.shape[0]
+        alphas_hat = np.zeros((T, N))
+        cs = np.ones(T)
+        cs[0] = 1.0 / np.sum(init_state * bpmf[a_t_to_bpmf[0], :])
+        alphas_hat[0, :] = cs[0] * init_state * bpmf[a_t_to_bpmf[0], :]
+        for t in np.arange(1, T):
+            alphas_tilde = bpmf[a_t_to_bpmf[t], :] * np.dot(
+                alphas_hat[t - 1, :], trans_matrix
+            )
+            cs[t] = 1.0 / np.sum(alphas_tilde)
+            alphas_hat[t, :] = cs[t] * alphas_tilde
+        return alphas_hat.T, cs
+
+    @staticmethod
+    @njit(fastmath=True)
+    def backward_one_numba(trans_matrix, a_t_to_bpmf, bpmf, cs):
+        N = trans_matrix.shape[0]
+        T = a_t_to_bpmf.shape[0]
+        betas_hat = np.zeros((T, N))
+        betas_hat[-1, :] = cs[-1]
+        for t in range(2, T + 1):
+            const_fact = betas_hat[-t + 1, :] * bpmf[a_t_to_bpmf[-t + 1], :]
+            betas_hat[-t, :] = cs[-t] * np.dot(trans_matrix, const_fact)
+        return betas_hat.T
+
+    def forward_backward_forward_one(self, init_state, a, a_t_to_bpmf_idx, bpmf_new):
+        alphas_hat, cs = self.forward_one_numba(
+            init_state, a, a_t_to_bpmf_idx, bpmf_new
+        )
+        assert np.all(np.isclose(np.sum(alphas_hat, axis=0), 1.0))
+        betas_hat = self.backward_one_numba(a, a_t_to_bpmf_idx, bpmf_new, cs)
+        gammas = alphas_hat * betas_hat / cs
+        assert np.all(np.isclose(np.sum(gammas, axis=0), 1.0))
+        return cs, gammas
+
+    def update_externals_from_datum(self, obs_counts, nts, sample_times):
+        assert len(obs_counts) == len(nts)
+        assert len(nts) == len(sample_times)
+        T = int(sample_times[-1] + 1)
+        sample_locs = sample_times
+
+        full_obs_counts = np.zeros(T)
+        full_obs_counts[sample_locs] = obs_counts
+        full_nts = np.zeros(T, dtype=int)
+        full_nts[sample_locs] = nts
+
+        nts_uq = np.unique(full_nts)
+        if 0 not in nts_uq:
+            nts_uq = np.concatenate(([0], nts_uq))
+        # emission probability mass function (bpmf)
+        # .bpmf_new = np.zeros((np.sum(.nts_uq)+.nts_uq.shape[0], .N))
+        bpmf_a = np.zeros(np.sum(nts_uq) + nts_uq.shape[0])
+        bpmf_n = np.zeros_like(bpmf_a)
+
+        bpmf_idx = np.cumsum(nts_uq + 1)
+        for nt_i, nt in enumerate(nts_uq[1:], 1):
+            bpmf_a[bpmf_idx[nt_i - 1] : bpmf_idx[nt_i]] = np.arange(nt + 1)
+            bpmf_n[bpmf_idx[nt_i - 1] : bpmf_idx[nt_i]] = nt
+
+        b = binom
+        # .bpmf = .b.pmf(np.broadcast_to(.obs_counts[..., None], .obs_counts.shape+(.N,)), np.broadcast_to(.nts[..., None], .nts.shape+(.N,)), np.broadcast_to(.gs, (.nloc, .T, .N))).transpose([1,2,0])
+        bpmf_new = b.pmf(
+            np.broadcast_to(bpmf_a[..., None], (*bpmf_a.shape, self.N)),
+            np.broadcast_to(bpmf_n[..., None], (*bpmf_n.shape, self.N)),
+            np.broadcast_to(self.gs, (bpmf_a.shape[0], self.N)),
+        )
+
+        a_t_to_bpmf_idx = np.zeros_like(full_nts)
+        for t in np.nonzero(full_nts)[0]:
+            a_t_to_bpmf_idx[t] = (
+                full_obs_counts[t] + bpmf_idx[np.where(nts_uq == full_nts[t])[0][0] - 1]
+            )
+
+        return a_t_to_bpmf_idx, bpmf_new
+
+    def compute_one_init_est(
+        self,
+        obs_counts,
+        nts,
+        sample_times,
+        a,
+        tol,
+        max_iter,
+        min_init_val=1e-8,
+    ):
+        a_t_to_bpmf_idx, bpmf_new = self.update_externals_from_datum(
+            obs_counts, nts, sample_times
+        )
+        itercount = 0
+        ll = -np.inf
+        init_state = self.init_init_state
+        init_params = self.init_init_params
+        while itercount < max_iter:
+            cs, gammas = self.forward_backward_forward_one(
+                init_state, a, a_t_to_bpmf_idx, bpmf_new
+            )
+            ll_new = -np.sum(np.log(cs))
+            if ll_new - ll < tol:
+                return init_state, init_params
+            ll = ll_new
+            init_state, init_params = self.update_init_beta(
+                gammas[:, 0], init_params, min_init_val=min_init_val
+            )
+            itercount += 1
+        return None
+
+    # compute neutral estimates
+    # feed into ll computation

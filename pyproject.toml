@@ -26,7 +26,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["numpy>=1.21.0,<2.0","scipy>=1.11","matplotlib","numba>=0.59","tqdm","colorcet","Cartopy>=0.23","jinja2","cycler","seaborn>=0.13","scikit-allel>=1.3"]
+dependencies = ["numpy>=1.21.0,<2.0","scipy>=1.11","matplotlib","numba>=0.59","tqdm","colorcet","Cartopy>=0.23","jinja2","cycler","seaborn>=0.13","scikit-allel>=1.3","snakemake>=8.0","snakemake-executor-plugin-cluster-generic"]
 
 [project.optional-dependencies]
 test = [
@@ -65,12 +65,13 @@ minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
 xfail_strict = true
 filterwarnings = [
-  "error",
+  "ignore:::.*.numba",
 ]
 log_cli_level = "INFO"
 testpaths = [
   "tests",
 ]
+pythonpath = "."
 
 
 [tool.coverage]
