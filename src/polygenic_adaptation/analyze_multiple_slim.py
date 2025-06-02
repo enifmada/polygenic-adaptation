@@ -84,7 +84,7 @@ def main():
     str_ests = []
     loop_len = len(smk.input) - 1 if smk.gwas else len(smk.input)
     for input_i in range(loop_len):
-        file_beta, file_omega, file_seed = get_params(smk.input[input_i])
+        file_beta, file_omega, _ = get_params(smk.input[input_i])
         omegas.append(file_omega)
         slim_path = Path(smk.input[input_i]).parent.parent / "slims"
         slim_fname = Path(smk.input[input_i]).name.rpartition("_")[0] + "_slim.txt"
@@ -100,13 +100,12 @@ def main():
         )
         betas_array = np.loadtxt(betas_path / betas_fname)
         if smk.gwas:
-            betas_array[:, 1]
+            _stderrs_array = betas_array[:, 1]
             betas_array = betas_array[:, 0]
-
         sigma_sq = compute_avg_variance(slim_array, betas_array)
         sigma_sqs.append(sigma_sq)
         grid = np.loadtxt(smk.input[input_i])
-        np.zeros(grid.shape[0] - 1) + file_beta
+        # _old_betas = np.zeros(grid.shape[0] - 1) + file_beta
         raw_grid = grid[0, :]
         dll_unif_vals = grid[1::2, :]
         sll_unif_vals = grid[2::2, :]

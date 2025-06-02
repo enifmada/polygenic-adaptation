@@ -64,8 +64,7 @@ def main():
     shrunk_ests_path = smk.input[1]
     adna_snps_path = smk.input[2]
     adna_csv_path = smk.input[3]
-    if smk.mode == "LDetect":
-        ld_blocks_path = smk.input[4]
+    ld_blocks_path = smk.input[4] if smk.mode == "LDetect" else ""
 
     # subset the shrunk snps to adna snps
     with Path.open(adna_snps_path, "rb") as file:

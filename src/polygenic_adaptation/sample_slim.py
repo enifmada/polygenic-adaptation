@@ -39,7 +39,7 @@ def main():
     smk = parser.parse_args()
 
     rng = np.random.default_rng(5)
-    beta, omega, seed = get_params(smk.input[0])
+    _, omega, _ = get_params(smk.input[0])
     samples_per_timepoint = 50
     slim_array = np.loadtxt(smk.input[0], skiprows=1).T
 

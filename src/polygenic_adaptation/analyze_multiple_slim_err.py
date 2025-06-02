@@ -68,7 +68,7 @@ def main():
         for ct in correction_types:
             str_ests[ct] = []
         for input_i in range(len(smk.input)):
-            file_beta, file_omega, file_seed = get_params(smk.input[input_i])
+            _, file_omega, file_seed = get_params(smk.input[input_i])
             omegas.append(file_omega)
             slim_path = Path(smk.input[input_i]).parent.parent / "slims"
             slim_fname = Path(smk.input[input_i]).name.rpartition("_")[0] + "_slim.txt"
@@ -221,8 +221,8 @@ def main():
             x_label = r"$\omega$"
 
         # account for bulmer - d/Vg = more complicated eq 17
-        X = (omegas**2 + 0) / sigma_sqs
-        1 - (3 + X - np.sqrt(1 + 6 * X + X**2)) / 4
+        # X = (omegas**2 + 0) / sigma_sqs
+        # 1 - (3 + X - np.sqrt(1 + 6 * X + X**2)) / 4
         if smk.mode == "directional":
             str_theory = smk.dz / (omegas**2)
         else:
