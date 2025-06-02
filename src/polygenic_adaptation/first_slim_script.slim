@@ -85,7 +85,7 @@ log.addCustomColumn("Pos" + q, "getMutFreqByPos("+q+");");
 }
 
 mutationEffect(m2)
-{ return 1.0; 
+{ return 1.0;
 }
 1: late() {
 // evaluate and save the additive effects of QTLs
@@ -164,12 +164,12 @@ writeFile(""+output_path+"_phenotypes.txt", paste(p1.individuals.tagF, sep=","))
 // function to compute LD
 function (float) getLD (integer$ locus1, integer$ locus2) {
 
-	// get the effect alleles 
+	// get the effect alleles
 	muts = sim.mutationsOfType(m2);
 //	noEffect = muts[muts.selectionCoeff == 0.0];
 	effect = muts[muts.selectionCoeff != 0.0];
 
-	// effect alleles at the two loci 
+	// effect alleles at the two loci
 	qEffectOne = effect[effect.position == locus1];
 	qEffectTwo = effect[effect.position == locus2];
 
@@ -184,7 +184,7 @@ function (float) getLD (integer$ locus1, integer$ locus2) {
 	p_A = sum(sim.mutationFrequencies(NULL, qEffectOne));
 	p_B = sum(sim.mutationFrequencies(NULL, qEffectTwo));
 
-	// count the nummber of haplotypes that carry both effect alleles
+	// count the number of haplotypes that carry both effect alleles
 	bothEffectAlleles = 0;
 	for (ind in p1.individuals) {
 		if ((sum(ind.genomes[0].mutations == qEffectOne) > 0) & (sum(ind.genomes[0].mutations == qEffectTwo) > 0))  {

@@ -1,14 +1,9 @@
 executor: cluster-generic
 cluster-generic-submit-cmd:
-  mkdir -p logs/{rule} &&
-  sbatch
-    --nodes=1
-    --ntasks=1
-    --cpus-per-task={resources.threads}
-    --mem={resources.mem_mb}
-    --job-name=smk-{rule}-{wildcards}
-    --output=logs/{rule}/{rule}-{wildcards}-%j.out
-    --parsable
+  mkdir -p logs/{rule} && sbatch --nodes=1 --ntasks=1
+  --cpus-per-task={resources.threads} --mem={resources.mem_mb}
+  --job-name=smk-{rule}-{wildcards}
+  --output=logs/{rule}/{rule}-{wildcards}-%j.out --parsable
 default-resources:
   - mem_mb=1000
   - threads=1

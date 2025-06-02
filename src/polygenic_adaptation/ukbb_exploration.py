@@ -13,9 +13,6 @@ data_file = "../../../data/UKBB_GWAS/blood_EOSINOPHIL_COUNT.sumstats.gz"
 data_array = pd.read_csv(data_file, sep="\t")
 
 
-big_betas = data_array.loc[data_array["Beta"] > .05, ["Beta", "se"]]
+big_betas = data_array.loc[data_array["Beta"] > 0.05, ["Beta", "se"]]
 ploot = sns.relplot(x=big_betas["Beta"], y=big_betas["se"], data=big_betas)
 ploot.figure.savefig("test_plot.png", format="png", bbox_inches="tight")
-
-
-

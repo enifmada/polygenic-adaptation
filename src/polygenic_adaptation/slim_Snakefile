@@ -73,7 +73,7 @@ rule all:
 rule generate_betas:
     output:
         subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas.txt",
-        subdir_str_dict["freqs"]+config["file_prefix"]+"b{b}_w{w}_s{s}_freqs.txt" 
+        subdir_str_dict["freqs"]+config["file_prefix"]+"b{b}_w{w}_s{s}_freqs.txt"
     shell:
         f"python generate_constants.py --beta_mode {config['beta_mode']} --freq_mode {config['freq_mode']} --beta {{wildcards.b}} --omega {{wildcards.w}} --seed {{wildcards.s}} -n {config['num_loci']} --freq {config['init_freq']} -o {{output}}"
 
@@ -111,8 +111,8 @@ rule sample_data:
 
 rule run_slims:
     input:
-        subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas.txt", 
-        subdir_str_dict["freqs"]+config["file_prefix"]+"b{b}_w{w}_s{s}_freqs.txt" 
+        subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas.txt",
+        subdir_str_dict["freqs"]+config["file_prefix"]+"b{b}_w{w}_s{s}_freqs.txt"
     output:
         subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_slim.txt",
         subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_allgenos.vcf" if config["ld_output"]>0 else "",

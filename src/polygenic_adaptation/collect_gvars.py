@@ -19,5 +19,6 @@ def main():
             file.write(f"{trait_name}: {h_squared:.6f}")
             file.write("\n")
 
+
 if __name__ == "__main__":
     main()

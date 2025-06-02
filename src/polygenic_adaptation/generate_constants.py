@@ -22,21 +22,21 @@ def main():
 
     betas = np.zeros(smk.n)
     freqs = np.zeros(smk.n)
-    np.random.default_rng(smk.seed+int(smk.omega))
+    np.random.default_rng(smk.seed + int(smk.omega))
     if smk.beta_mode == "constant":
         betas += smk.beta
         signs = np.ones_like(betas)
-        signs[signs.shape[0]//2:] *= -1
-        betas = betas*signs#rng.permutation(signs)
+        signs[signs.shape[0] // 2 :] *= -1
+        betas = betas * signs  # rng.permutation(signs)
     else:
         raise NotImplementedError
-        
+
     if smk.freq_mode == "constant":
         freqs += smk.freq
-        
 
     np.savetxt(smk.output[0], betas)
     np.savetxt(smk.output[1], freqs)
+
 
 if __name__ == "__main__":
     main()
