@@ -4,6 +4,7 @@ import argparse
 import sys
 from itertools import product as itprod
 from json import dump as jdump
+from json import loads
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -128,11 +129,18 @@ def main():
             except ValueError:
                 actual_beta_params[k] = v
     args_dict["beta_params"] = actual_beta_params
-    for S, dz, g, ic in itprod(
+    if "std_frac_err_matrix" not in args_dict["beta_params"]:
+        args_dict["beta_params"]["std_frac_err_matrix"] = [0]
+    else:
+        args_dict["beta_params"]["std_frac_err_matrix"] = loads(
+            args_dict["beta_params"]["std_frac_err_matrix"]
+        )
+    for S, dz, g, ic, std_err in itprod(
         args_dict["sel_gradients"],
         args_dict["delta_z"],
         args_dict["num_gens"],
         args_dict["init_conds"],
+        args_dict["beta_params"]["std_frac_err_matrix"],
     ):
         ns_matrix = generate_sampling_matrix(
             args_dict["data_matched"][0] != "",
@@ -141,11 +149,12 @@ def main():
             args_dict["samples_per_timepoint"],
             args_dict["num_sampling_times"],
         )
-        base_fname = generate_fname(S=S, dz=dz, g=g, ic=ic)
+        base_fname = generate_fname(S=S, dz=dz, g=g, ic=ic, std_err=std_err)
+        args_dict["beta_params"]["std_frac_err"] = std_err
         for i in range(args_dict["num_reps"]):
             rng = np.random.default_rng(args_dict["seed"] + i)
             p_init = generate_initial_condition(ic, args_dict["num_loci"], rng)
-            betas = generate_betas(
+            betas, beta_hats = generate_betas(
                 args_dict["beta_coefficients"],
                 args_dict["num_loci"],
                 rng,
@@ -153,7 +162,7 @@ def main():
             )
             np.savetxt(
                 f"{args_dict['output_directory']}/{args_dict['prefix']}{base_fname}_rep{i}_betas.txt",
-                betas,
+                np.stack((betas, beta_hats)).T,
             )
             np.sum(2 * betas**2 * p_init * (1 - p_init))
             freqs = generate_poly_sims(

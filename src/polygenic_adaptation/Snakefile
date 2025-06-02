@@ -3,20 +3,17 @@ import json
 from itertools import product as itprod
 from polyutil import generate_fname
 
-json_file_loc = "../../simulation_params/EM_comparison_params.json"
+json_file_loc = "../../simulation_params/beta_error_params.json"
 json_params = json.loads(Path(json_file_loc).read_text())
 if "hmm_Ne" not in json_params.keys():
     json_params["hmm_Ne"] = json_params["Ne"]
 base_dir = Path("../../../polyoutput")
-base_data_dir = base_dir/"sims/data"
-base_plots_dir = base_dir/"sims/plots"
-base_analysis_dir = base_dir/"sims/analysis"
-(base_data_dir/json_params['file_prefix'][:-1]).mkdir(parents=True,exist_ok=True)
-(base_plots_dir/json_params['file_prefix'][:-1]).mkdir(parents=True,exist_ok=True)
-(base_analysis_dir/json_params['file_prefix'][:-1]).mkdir(parents=True,exist_ok=True)
-data_dir = base_data_dir/json_params['file_prefix'][:-1]
-plots_dir = base_plots_dir/json_params['file_prefix'][:-1]
-analysis_dir = base_analysis_dir/json_params['file_prefix'][:-1]
+data_dir = base_dir/f"sims/{json_params['file_prefix'][:-1]}/data"
+plots_dir = base_dir/f"sims/{json_params['file_prefix'][:-1]}/plots"
+analysis_dir = base_dir/f"sims/{json_params['file_prefix'][:-1]}/analysis"
+data_dir.mkdir(parents=True,exist_ok=True)
+plots_dir.mkdir(parents=True,exist_ok=True)
+analysis_dir.mkdir(parents=True,exist_ok=True)
 base_csv_path = f"{data_dir}/{json_params['file_prefix']}"
 base_plots_path = f"{plots_dir}/{json_params['file_prefix']}"
 base_analysis_path = f"{analysis_dir}/{json_params['file_prefix']}"
@@ -26,8 +23,21 @@ output_plots = []
 output_grids = []
 output_betas = []
 
-for dz, S, g, ic in itprod(json_params["dz_list"], json_params["S_list"], json_params['num_gens_list'], json_params['init_cond_list']):
-    base_fname = generate_fname(**{"S":S, "dz":dz, "g":g, "ic":ic})
+std_errs = []
+json_beta_params_dict = {}
+for ic_pair in json_params["beta_params"]:
+    k, v = ic_pair.split("=")
+    json_beta_params_dict[k] = v
+    if k=="std_frac_err_matrix":
+        for val in v[1:-1].split(","):
+            std_errs.append(float(val))
+        break
+beta_params_str = ""
+for key in json_beta_params_dict:
+    beta_params_str += f"{key}={json_beta_params_dict[key]} "
+beta_params_str = beta_params_str[:-1]
+for dz, S, g, ic, std_err in itprod(json_params["dz_list"], json_params["S_list"], json_params['num_gens_list'], json_params['init_cond_list'], std_errs):
+    base_fname = generate_fname(**{"S":S, "dz":dz, "g":g, "ic":ic, "std_err":std_err})
     for i in range(json_params["num_reps"]):
         output_csvs.append(f"{base_csv_path}{base_fname}_rep{i}_data.csv")
         output_plots.append(f"{base_csv_path}{base_fname}_rep{i}_freqs.pdf")
@@ -39,7 +49,9 @@ dz_str = ' '.join(str(dz_i) for dz_i in json_params['dz_list'])
 g_str = ' '.join(str(g_i) for g_i in json_params['num_gens_list'])
 ic_str = ' '.join(str(ic_i) for ic_i in json_params['init_cond_list'])
 save_plots_str = '--save_plots' if json_params['save_plots'] else ''
-beta_params_str = f"--beta_params {json_params['beta_params']}" if json_params['beta_params'] else ""
+beta_params_str = f"--beta_params {beta_params_str}" if json_params['beta_params'] else ""
+
+print(beta_params_str)
 
 rule all:
     input:
@@ -65,12 +77,14 @@ rule run_grid:
     shell:
         f"python run_hmm.py {{input}} {{output}} --time_after_zero -hs {json_params['hidden_states']} -sid {json_params['hmm_init_dist']}"
         f" --grid_s_max {json_params['grid_s_max']} -np {json_params['num_half_grid_points']} -Ne {json_params['hmm_Ne']}"
-        f" --progressbar --snakemake"
+        f" --em_rounds {json_params['em_rounds']} --progressbar --snakemake"
 
 rule analyze_grids:
     input:
         output_grids,output_betas,json_file_loc
     output:
         base_analysis_path+"confusion_table.csv",base_plots_path+"estimated_gradient.pdf"
+    resources:
+        mem_mb = 20000
     shell:
         "python analyze_grids.py -i {input} -o {output}"

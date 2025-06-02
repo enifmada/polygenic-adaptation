@@ -1,0 +1,209 @@
+initialize() {
+initializeMutationRate(0);
+// neutral mutations in non-coding regions
+//initializeMutationType("m1", 0.5, "f", 0.0);
+//initializeGenomicElementType("g1", m1, 1.0);
+// mutations representing alleles in QTLs
+scriptForQTLs = "if (runif(1) < 0.5) -1; else 1;";
+initializeMutationType("m2", 0.5, "f", 1.0);
+initializeGenomicElementType("g2", m2, 1.0);
+m2.convertToSubstitution = F;
+m2.mutationStackPolicy = "l";
+// set up our chromosome: 10 QTLs, surrounded by neutral regions
+defineConstant("C", num_loci); // number of QTLs
+defineConstant("W", 0); // size of neutral buffer on each side
+defineConstant("logInterval", max(1,asInteger(num_gens/num_sampling_pts)));
+pos = 0;
+q = NULL;
+for (i in 1:C)
+{
+//initializeGenomicElement(g1, pos, pos + W-1);
+pos = pos + W;
+initializeGenomicElement(g2, pos, pos);
+q = c(q, pos);
+pos = pos + 1;
+//initializeGenomicElement(g1, pos, pos + W-1);
+pos = pos + W;
+}
+defineConstant("Q", q); // remember our QTL positions
+// we want the QTLs to be unlinked; build a recombination map for that
+//rates = c(rep(c(1e-8, 0.5), C-1), 1e-8);
+//ends = (repEach(Q + W, 2) + rep(c(0,1), C))[0:(C*2 - 2)];
+//initializeRecombinationRate(rates, ends);
+initializeRecombinationRate(0.5);
+}
+
+
+function (float$)getMutFreqByPos(numeric q){
+	muts = sim.mutationsOfType(m2);
+	plus = muts[muts.selectionCoeff != 0.0];
+	qPlus = plus[plus.position == q];
+	return sum(sim.mutationFrequencies(NULL, qPlus));
+}
+
+// create a population of Ne individuals
+1 late() {
+sim.addSubpop("p1", Ne);
+// replicate the s1 event to output in tick 2 also
+community.registerEarlyEvent("s2", s1.source, 2, 2);
+
+g = sim.subpopulations.genomes;
+i = 0;
+beta_array = readFile(beta_file);
+freq_array = readFile(freq_file);
+for (q in Q)
+{
+mut_size = rnorm(1,1,0.5);
+init_freq = asFloat(freq_array[i]);
+
+//initialize the right number of individuals with the mutation - thx Matthias
+is_effect = asLogical(1:size(g) <= init_freq * size(g));
+is_effect = sample(is_effect, size(is_effect));
+
+g[is_effect].addNewMutation(m2, asFloat(beta_array[i]), q);
+g[!is_effect].addNewMutation(m2, 0.0, q);
+i = i+1;
+}
+log = community.createLogFile(""+output_path+"_slim.txt", sep="\t", logInterval=logInterval);
+log.addCycle();
+log.addCustomColumn("MeanP", "mean(p1.individuals.tagF);");
+log.addCustomColumn("VarP", "var(p1.individuals.tagF);");
+for (q in Q)
+{
+log.addCustomColumn("Pos" + q, "getMutFreqByPos("+q+");");
+}
+//num_ld_loci = 0;
+//	// some beta orientation
+//	for (i in 1:num_ld_loci) {
+//		log.addCustomColumn("LD(0,"+i+")", "getLD(0,"+i+");");
+//	}
+//	// oppostie beta orieantation
+//	for (i in 1:num_ld_loci) {
+//		realLocus = C - i;
+//		log.addCustomColumn("LD(0,"+realLocus+")", "getLD(0,"+realLocus+");");
+//	}
+}
+
+mutationEffect(m2)
+{ return 1.0; 
+}
+1: late() {
+// evaluate and save the additive effects of QTLs
+inds = p1.individuals;
+add_phenotype = inds.sumOfMutationsOfType(m2);
+
+//add environmental variance - stolen from the SLiM manual p298
+V_A = sd(add_phenotype)^2;
+V_E = (V_A - h2*V_A)/h2;
+env = rnorm(size(inds), 0.0, sqrt(V_E));
+
+phenotypes = add_phenotype + env;
+
+optimum = 0;
+if (mode == "stabilizing"){
+	exp_num = (optimum-phenotypes)^2;
+	exp_denom = omega^2;
+	inds.fitnessScaling = exp(-0.5*(exp_num/exp_denom));
+	}
+else if (mode == "directional"){
+	inds.fitnessScaling = exp(dz*phenotypes/omega^2);
+	}
+else{
+	stop();
+}
+inds.tagF = phenotypes;
+}
+
+
+
+s1 num_gens early() {
+cat("-------------------------------\n");
+cat("Output for end of cycle " + (sim.cycle - 1) + ":\n\n");
+// Output population fitness values
+cat("p1 mean fitness = " + mean(p1.cachedFitness(NULL)) + "\n");
+// Output population additive QTL-based phenotypes
+cat("p1 mean phenotype = " + mean(p1.individuals.tagF) + "\n");
+// Output frequencies of +1/-1 alleles at the QTLs
+muts = sim.mutationsOfType(m2);
+plus = muts[muts.selectionCoeff != 0.0];
+realplus = muts[muts.selectionCoeff > 0.0];
+minus = muts[muts.selectionCoeff == 0.0];
+cat("\nOverall frequencies:\n\n");
+for (q in Q)
+{
+qPlus = plus[plus.position == q];
+qMinus = minus[minus.position == q];
+qPlusPlus = realplus[realplus.position == q];
+pf = sum(sim.mutationFrequencies(NULL, qPlus));
+mf = sum(sim.mutationFrequencies(NULL, qMinus));
+ppf = sum(sim.mutationFrequencies(NULL, qPlusPlus));
+cat(" QTL " + q + ": f(+) == " + pf + ", f(-) == " + mf + "f(pos) == "+ ppf + "\n");
+}
+}
+// output samples of 10 genomes periodically, all fixed mutations at end
+//1000 late() { p1.outputSample(10); }
+//2000 late() { p1.outputSample(10); }
+//2000 late() { sim.outputFixedMutations(); }
+
+1:num_gens late(){
+if (ld_output > 10){
+p1.genomes.outputVCF(""+output_path+"_" + sim.cycle+"_allgenos.vcf");
+writeFile(""+output_path+"_"+sim.cycle+"_phenotypes.txt", paste(p1.individuals.tagF, sep=","));
+}
+}
+
+num_gens late(){
+if (ld_output > 0){
+p1.genomes.outputVCF(""+output_path+"_allgenos.vcf");
+writeFile(""+output_path+"_phenotypes.txt", paste(p1.individuals.tagF, sep=","));
+}
+}
+
+
+// SLiM is horrible
+// function to compute LD
+function (float) getLD (integer$ locus1, integer$ locus2) {
+
+	// get the effect alleles 
+	muts = sim.mutationsOfType(m2);
+//	noEffect = muts[muts.selectionCoeff == 0.0];
+	effect = muts[muts.selectionCoeff != 0.0];
+
+	// effect alleles at the two loci 
+	qEffectOne = effect[effect.position == locus1];
+	qEffectTwo = effect[effect.position == locus2];
+
+	// if one of the alleles is lost, the code below breaks
+	// but in that case, we know that LD is zero
+	// for fixed alleles the code actually works fine
+	if ((size(qEffectOne) < 1) | (size(qEffectTwo) < 1)) {
+		return 0.0;
+	}
+
+	// marginal frequencies
+	p_A = sum(sim.mutationFrequencies(NULL, qEffectOne));
+	p_B = sum(sim.mutationFrequencies(NULL, qEffectTwo));
+
+	// count the nummber of haplotypes that carry both effect alleles
+	bothEffectAlleles = 0;
+	for (ind in p1.individuals) {
+		if ((sum(ind.genomes[0].mutations == qEffectOne) > 0) & (sum(ind.genomes[0].mutations == qEffectTwo) > 0))  {
+			bothEffectAlleles = bothEffectAlleles + 1;
+		}
+		if ((sum(ind.genomes[1].mutations == qEffectOne) > 0) & (sum(ind.genomes[1].mutations == qEffectTwo) > 0))  {
+			bothEffectAlleles = bothEffectAlleles + 1;
+		}
+	}
+
+	// get the frequency
+	p_AB = bothEffectAlleles / (2*size(p1.individuals));
+
+	// Compute linkage disequilibrium coefficient D
+//	cat ("p_AB: " + p_AB + "\n");
+//	cat ("p_A: " + p_A + "\n");
+//	cat ("p_B: " + p_B + "\n");
+	D = p_AB - (p_A * p_B);
+//	cat ("D: " + D + "\n");
+
+	return D;
+}

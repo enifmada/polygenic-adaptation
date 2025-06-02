@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import argparse
 import sys
-from itertools import tee as ittee
 from json import dump as jdump
 from pathlib import Path
 
 import numpy as np
-from scipy.interpolate import PchipInterpolator
+from joblib import Parallel, delayed
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from tqdm import tqdm
 
 from polygenic_adaptation.hmm_core import HMM
+
+
+def compute_ll_wrapper(hmm, s, data_matrix, init_states):
+    direc_res = hmm.compute_multiple_ll(s / 2, s, data_matrix, init_states)
+    stab_res = hmm.compute_multiple_ll(s, 0, data_matrix, init_states)
+    return direc_res, stab_res
 
 
 def main():
@@ -99,6 +104,13 @@ def main():
         help="save a pickle file with a full set of outputs (in addition to the CSV)",
     )
     parser.add_argument(
+        "-nc",
+        "--num_cores",
+        type=int,
+        default=1,
+        help="number of CPU cores to parallelize over",
+    )
+    parser.add_argument(
         "--force",
         type=str,
         nargs=1,
@@ -133,84 +145,49 @@ def main():
         # equivalent of pass but the thing exists
         data_matrix = np.zeros((1,))
 
-    MIN_GRID_VAL = 1e-8
+    MIN_GRID_VAL = 5e-5
     pos_grid = np.geomspace(
         MIN_GRID_VAL, args_dict["grid_s_max"], args_dict["num_half_grid_points"]
     )
     full_grid = np.concatenate((-pos_grid[::-1], [0], pos_grid))
 
-    interp_grid = np.linspace(-args_dict["grid_s_max"], args_dict["grid_s_max"], 1001)
+    np.linspace(-args_dict["grid_s_max"], args_dict["grid_s_max"], 1001)
     direc_unif_lls = np.zeros((data_matrix.shape[0], full_grid.shape[0]))
     stab_unif_lls = np.zeros((data_matrix.shape[0], full_grid.shape[0]))
-    direc_EM_lls = np.zeros_like(direc_unif_lls)
-    stab_EM_lls = np.zeros_like(stab_unif_lls)
 
-    # init_ests = np.zeros((data_matrix.shape[0], args_dict["hidden_states"]))
-    # neutral_a = hmm.calc_transition_probs_old([0, 0])
-    # for i in tqdm(range(data_matrix.shape[0])):
-    #     init_ests[i, :], _ = hmm.compute_one_init_est(data_matrix[i, 2::3], data_matrix[i, 1::3],
-    #                                                             data_matrix[i, ::3], neutral_a, tol=1e-3, max_iter=1000,
-    #                                                             min_init_val=1e-8, )
-    enum_object = (
-        enumerate(tqdm(full_grid)) if args_dict["progressbar"] else enumerate(full_grid)
-    )
-    loop_1, loop_2 = ittee(enum_object, 2)
-    for s_i, s in loop_1:
-        direc_unif_lls[:, s_i] = hmm.compute_multiple_ll(
-            s1=s / 2, s2=s, data_matrix=data_matrix, init_states=None
-        )
-        stab_unif_lls[:, s_i] = hmm.compute_multiple_ll(
-            s1=s, s2=0, data_matrix=data_matrix, init_states=None
-        )
-        # direc_EM_lls[:, s_i] = hmm.compute_multiple_ll(s1=s/2,s2=s,data_matrix=data_matrix,init_states=init_ests)
-        # stab_EM_lls[:, s_i] = hmm.compute_multiple_ll(s1=s,s2=0,data_matrix=data_matrix,init_states=init_ests)
+    if args_dict["num_cores"] > 1:
+        parallel_loop = tqdm(full_grid) if args_dict["progressbar"] else full_grid
+        with Parallel(n_jobs=args_dict["num_cores"]) as parallel:
+            res = parallel(
+                delayed(compute_ll_wrapper)(hmm, p_s, data_matrix, None)
+                for p_s in parallel_loop
+            )
+        direc_lls = [rp[0] for rp in res]
+        stab_lls = [rp[1] for rp in res]
+        direc_unif_lls[:, :] = np.array(direc_lls).T.squeeze()
+        stab_unif_lls[:, :] = np.array(stab_lls).T.squeeze()
+    else:
+        for s_i, s in (
+            enumerate(tqdm(full_grid))
+            if args_dict["progressbar"]
+            else enumerate(full_grid)
+        ):
+            direc_unif_lls[:, s_i] = hmm.compute_multiple_ll(
+                s1=s / 2, s2=s, data_matrix=data_matrix, init_states=None
+            )
+            stab_unif_lls[:, s_i] = hmm.compute_multiple_ll(
+                s1=s, s2=0, data_matrix=data_matrix, init_states=None
+            )
 
-    direc_init_ests = np.zeros((data_matrix.shape[0], args_dict["hidden_states"]))
-    stab_init_ests = np.zeros_like(direc_init_ests)
-    for i in tqdm(range(data_matrix.shape[0])):
-        direc_pchip = PchipInterpolator(full_grid, direc_unif_lls[i, :])
-        stab_pchip = PchipInterpolator(full_grid, stab_unif_lls[i, :])
-        direc_s = interp_grid[np.argmax(direc_pchip(interp_grid))]
-        direc_a = hmm.calc_transition_probs_old([direc_s / 2, direc_s])
-        direc_init_ests[i, :], _ = hmm.compute_one_init_est(
-            data_matrix[i, 2::3],
-            data_matrix[i, 1::3],
-            data_matrix[i, ::3],
-            direc_a,
-            tol=1e-3,
-            max_iter=1000,
-            min_init_val=1e-8,
-        )
-        stab_s = interp_grid[np.argmax(stab_pchip(interp_grid))]
-        stab_a = hmm.calc_transition_probs_old([stab_s, 0])
-        stab_init_ests[i, :], _ = hmm.compute_one_init_est(
-            data_matrix[i, 2::3],
-            data_matrix[i, 1::3],
-            data_matrix[i, ::3],
-            stab_a,
-            tol=1e-3,
-            max_iter=1000,
-            min_init_val=1e-8,
-        )
-
-    for s_i, s in loop_2:
-        direc_EM_lls[:, s_i] = hmm.compute_multiple_ll(
-            s1=s / 2, s2=s, data_matrix=data_matrix, init_states=direc_init_ests
-        )
-        stab_EM_lls[:, s_i] = hmm.compute_multiple_ll(
-            s1=s, s2=0, data_matrix=data_matrix, init_states=stab_init_ests
-        )
-    combined_grid = np.zeros((4 * direc_unif_lls.shape[0] + 1, direc_unif_lls.shape[1]))
+    combined_grid = np.zeros((2 * direc_unif_lls.shape[0] + 1, direc_unif_lls.shape[1]))
     combined_grid[0, :] = full_grid
     for row in range(direc_unif_lls.shape[0]):
-        combined_grid[4 * row + 1, :] = direc_unif_lls[row, :]
-        combined_grid[4 * row + 2, :] = stab_unif_lls[row, :]
-        combined_grid[4 * row + 3, :] = direc_EM_lls[row, :]
-        combined_grid[4 * row + 4, :] = stab_EM_lls[row, :]
+        combined_grid[2 * row + 1, :] = direc_unif_lls[row, :]
+        combined_grid[2 * row + 2, :] = stab_unif_lls[row, :]
     np.savetxt(
         args_dict["output_path"],
         combined_grid,
-        header="s_grid followed by direc_unif_ll, stab_unif_ll, direc_EM_ll, stab_EM_ll for each rep",
+        header="s_grid followed by direc_unif_ll+stab_unif_ll for each rep",
     )
     if "snakemake" not in args_dict or not args_dict["snakemake"]:
         json_fname = f"{Path(args_dict['output_path']).with_suffix('')}_params.json"

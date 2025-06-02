@@ -1,0 +1,76 @@
+from pathlib import Path
+
+TRAITS, = glob_wildcards("../../../../../data/UKBB_GWAS/{trait}.sumstats.gz")
+base_dir = Path("../../../polyoutput/ukbb_shrunk")
+adna_snps_info_file = base_dir/"GB_v54.1_capture_only_agg_data.pkl"
+ld_blocks_file = "../../../../../data/LDetect_beds/EUR/fourier_ls-all.bed"
+adna_full_csv_file = base_dir/"GB_v54.1_capture_only_all_chroms.csv"
+
+if "hmm_Ne" not in config:
+    config["hmm_Ne"] = config["Ne"]
+
+rule all:
+    input:
+        expand(base_dir/"ash_results/{trait}_ash.csv.gz", trait=TRAITS), expand(base_dir/"ash_results/{trait}_ash_g.csv", trait=TRAITS), expand(base_dir/"ash_results/{trait}_density.pdf", trait=TRAITS), base_dir/f"output/all_gvars{config['suffix']}.txt", base_dir/f"output/all_dir_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_ests{config['suffix']}.pdf"
+
+rule shrink_sumstats:
+    input:
+        "../../../../../data/UKBB_GWAS/{trait}.sumstats.gz"
+    output:
+        base_dir/"ash_results/{trait}_ash.csv.gz", base_dir/"ash_results/{trait}_ash_g.csv"
+    resources:
+        mem_mb = 50000
+    shell:
+        "python shrink_ukbb_sumstats.py -i {input} -o {output}"
+
+rule subset_and_prune_snps:
+    input:
+        "../../../../../data/UKBB_GWAS/{trait}.sumstats.gz", base_dir/"ash_results/{trait}_ash.csv.gz", adna_snps_info_file, adna_full_csv_file, ld_blocks_file 
+    output:
+        base_dir/f"pruned_data/{{trait}}_ash_pruned_sumstats{config['suffix']}.csv", base_dir/f"pruned_data/{{trait}}_ash_pruned_adna_idxs{config['suffix']}.txt", base_dir/f"pruned_data/{{trait}}_ash_pruned_adna{config['suffix']}.csv"
+    resources:
+        mem_mb=20000
+    shell:
+        f"python subset_and_prune.py greedy --height {config['height']} --width {config['width']} -i {{input}} -o {{output}}"
+
+rule run_grid:
+    input:
+        base_dir/f"pruned_data/{{trait}}_ash_pruned_adna{config['suffix']}.csv"
+    output:
+        base_dir/f"hmm_grids/{{trait}}_grid{config['suffix']}.csv"
+    resources:
+        threads=8,
+        mem_mb=5000
+    shell:
+        f"python run_hmm.py {{input}} {{output}} --time_after_zero -hs {config['hidden_states']} -sid {config['hmm_init_dist']} -nc {{resources.threads}}"
+        f" --grid_s_max {config['grid_s_max']} -np {config['num_half_grid_points']} -Ne {config['hmm_Ne']}"
+        f" --progressbar --snakemake"
+
+rule analyze_grids:
+    input:
+        expand(base_dir/f"hmm_grids/{{trait}}_grid{config['suffix']}.csv", trait=TRAITS), expand(base_dir/f"pruned_data/{{trait}}_ash_pruned_sumstats{config['suffix']}.csv", trait=TRAITS)
+    output:
+        base_dir/f"output/all_dir_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_ests{config['suffix']}.pdf"
+    resources:
+        mem_mb=70000
+    shell:
+        "python analyze_real_data.py -i {input} -o {output}"
+
+rule collect_gvars:
+    input:
+        expand(base_dir/f"pruned_data/{{trait}}_ash_pruned_adna_idxs{config['suffix']}.txt", trait=TRAITS)
+    output:
+        base_dir/f"output/all_gvars{config['suffix']}.txt"
+    shell:
+        "python collect_gvars.py -i {input} -o {output}"
+
+rule plot_density:
+    input:
+        base_dir/"ash_results/{trait}_ash_g.csv"
+    output:
+        base_dir/"ash_results/{trait}_density.pdf", base_dir/"ash_results/{trait}_hatplot.pdf"
+    shell:
+        "python plot_density.py -i {input} -o {output}"
+
+
+        

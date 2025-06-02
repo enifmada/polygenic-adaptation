@@ -1,0 +1,157 @@
+import json
+from pathlib import Path
+
+base_dir = "../../../polyoutput/slim_testing/"+config["file_prefix"][:-1]
+Path(base_dir).mkdir(parents=True, exist_ok=True)
+
+true_base_dir = base_dir + "/"
+subdir_strs = ["betas", "freqs", "slims", "data", "grids", "trajs", "surfaces"]
+subdir_singles = ["betas", "freqs", "slim", "data", "grid", "trajs", "surface"]
+subdir_ftypes = [".txt", ".txt", ".txt", ".csv", ".csv", ".pdf", ".pdf"]
+subdirs = [true_base_dir+subdir+"/" for subdir in subdir_strs]
+print(subdirs)
+subdir_str_dict = {}
+final_output = []
+add_b_lineplot = False
+add_w_lineplot = False
+for s_i, subdir in enumerate(subdirs):
+    subdir_str_dict[subdir_strs[s_i]] = subdir
+    Path(subdir[:-1]).mkdir(parents=True, exist_ok=True)
+    temp_b_strs = expand(subdir+config['file_prefix']+"b{b}_w{w}_s{s}_"+subdir_singles[s_i]+subdir_ftypes[s_i], b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"]))
+    final_output.extend(temp_b_strs)
+    if s_i == 0 and len(temp_b_strs)>0:
+        add_b_lineplot = True
+    temp_w_strs = expand(subdir+config['file_prefix']+"b{b}_w{w}_s{s}_"+subdir_singles[s_i]+subdir_ftypes[s_i], b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"]))
+    final_output.extend(temp_w_strs)
+    if s_i == 0 and len(temp_w_strs)>0:
+        add_w_lineplot = True
+
+if add_b_lineplot:
+    final_output.append(true_base_dir+config['file_prefix']+"b_lineplot.pdf")
+if add_w_lineplot:
+    final_output.append(true_base_dir+config['file_prefix']+"w_lineplot.pdf")
+
+if "hmm_Ne" not in config:
+    config["hmm_Ne"] = config["Ne"]
+
+if "ld_output" not in config:
+    config["ld_output"] = -1
+
+if "h2" not in config:
+    config["h2"] = 1
+
+if "analysis_betas" not in config:
+    config["analysis_betas"] = "ground_truth"
+
+if config["analysis_betas"] == "gwas":
+    #need the ld output to do a gwas
+    if config["ld_output"] < 0:
+        config["ld_output"] = 5
+    temp_betas_b_strs = expand(subdir_str_dict["betas"]+config['file_prefix']+"b{b}_w{w}_s{s}_betas_gwas.txt", b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"]))
+    final_output.extend(temp_betas_b_strs)
+    temp_betas_w_strs = expand(subdir_str_dict["betas"]+config['file_prefix']+"b{b}_w{w}_s{s}_betas_gwas.txt", b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"]))
+    final_output.extend(temp_betas_w_strs)
+
+if config["ld_output"] > 0:
+    temp_vcf_b_strs = expand(subdir_str_dict["slims"]+config['file_prefix']+"b{b}_w{w}_s{s}_allgenos.vcf", b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"]))
+    final_output.extend(temp_vcf_b_strs)
+    temp_vcf_w_strs = expand(subdir_str_dict["slims"]+config['file_prefix']+"b{b}_w{w}_s{s}_allgenos.vcf", b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"]))
+    final_output.extend(temp_vcf_w_strs)
+    temp_pheno_b_strs = expand(subdir_str_dict["slims"]+config['file_prefix']+"b{b}_w{w}_s{s}_phenotypes.txt", b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"]))
+    final_output.extend(temp_pheno_b_strs)
+    temp_pheno_w_strs = expand(subdir_str_dict["slims"]+config['file_prefix']+"b{b}_w{w}_s{s}_phenotypes.txt", b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"]))
+    final_output.extend(temp_pheno_w_strs)
+
+print(config["analysis_betas"])
+
+touch_str = "touch.file" if config["analysis_betas"] == "gwas" else "touch_grass.file"
+
+rule all:
+    input:
+        final_output
+
+rule generate_betas:
+    output:
+        subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas.txt",
+        subdir_str_dict["freqs"]+config["file_prefix"]+"b{b}_w{w}_s{s}_freqs.txt" 
+    shell:
+        f"python generate_constants.py --beta_mode {config['beta_mode']} --freq_mode {config['freq_mode']} --beta {{wildcards.b}} --omega {{wildcards.w}} --seed {{wildcards.s}} -n {config['num_loci']} --freq {config['init_freq']} -o {{output}}"
+
+if config["analysis_betas"] == "gwas":
+    rule perform_gwaslim:
+        input:
+            subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_allgenos.vcf",
+            subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_phenotypes.txt"
+        output:
+            subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas_gwas.txt"
+        resources:
+            mem_mb=10000
+        shell:
+            f"python perform_gwaslim.py -p {{input[1]}} -g {{input[0]}} -o {{output}}"
+
+    rule touch_gwas:
+        input:
+            expand(subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas_gwas.txt", b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"])),
+            expand(subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas_gwas.txt", b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"])),
+        output:
+            touch(true_base_dir+"touch.file")
+else:
+    rule dont_perform_gwaslim:
+        output:
+            touch(true_base_dir+"touch_grass.file")
+
+rule sample_data:
+    input:
+        subdir_str_dict["slims"]+config['file_prefix']+"b{b}_w{w}_s{s}_slim.txt"
+    output:
+        subdir_str_dict["data"]+config["file_prefix"]+"b{b}_w{w}_s{s}_data.csv",
+        subdir_str_dict["trajs"]+config['file_prefix']+"b{b}_w{w}_s{s}_trajs.pdf"
+    shell:
+        "python sample_slim.py -i {input} -o {output}"#output
+
+rule run_slims:
+    input:
+        subdir_str_dict["betas"]+config["file_prefix"]+"b{b}_w{w}_s{s}_betas.txt", 
+        subdir_str_dict["freqs"]+config["file_prefix"]+"b{b}_w{w}_s{s}_freqs.txt" 
+    output:
+        subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_slim.txt",
+        subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_allgenos.vcf" if config["ld_output"]>0 else "",
+        subdir_str_dict["slims"]+config["file_prefix"]+"b{b}_w{w}_s{s}_phenotypes.txt" if config["ld_output"]>0 else ""
+    resources:
+        mem_mb=50000
+    shell:
+        f'slim -s {{wildcards.s}} -d beta_file="\'{{input[0]}}\'" -d freq_file="\'{{input[1]}}\'" -d omega={{wildcards.w}} -d dz={config["dz"]} -d h2={config["h2"]} -d num_gens={config["num_gens"]} -d num_sampling_pts={config["num_sampling_pts"]} -d num_loci={config["num_loci"]} -d Ne={config["Ne"]} -d ld_output={config["ld_output"]} -d mode="\'{config["mode"]}\'" -d output_path="\'{subdir_str_dict["slims"]}{config["file_prefix"]}b{{wildcards.b}}_w{{wildcards.w}}_s{{wildcards.s}}\'" first_slim_script.slim'
+
+rule run_grids:
+    input:
+        subdir_str_dict["data"]+config['file_prefix']+"b{b}_w{w}_s{s}_data.csv"
+    output:
+        subdir_str_dict["grids"]+config['file_prefix']+"b{b}_w{w}_s{s}_grid.csv"
+    resources:
+        threads=min(config['num_half_grid_points']//2+1,30),
+        mem_mb = 5000
+    shell:
+        f"python run_hmm.py {{input}} {{output}} --time_after_zero -hs {config['hidden_states']} -sid {config['hmm_init_dist']}"
+        f" --grid_s_max {config['grid_s_max']} -np {config['num_half_grid_points']} -Ne {config['hmm_Ne']} -nc {{resources.threads}} --progressbar --snakemake"
+
+rule analyze_b_grids:
+    input:
+        expand(subdir_str_dict["grids"]+config['file_prefix']+"b{b}_w{w}_s{s}_grid.csv", b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"])),
+        true_base_dir+touch_str
+    output:
+        expand(subdir_str_dict["surfaces"]+config['file_prefix']+"b{b}_w{w}_s{s}_surface.pdf", b=config["beta_array"], w=config["omega_default"], s=range(config["num_replicates"])), true_base_dir+config['file_prefix']+"b_lineplot.pdf"
+    resources:
+        mem_mb=5000
+    shell:
+        f"python analyze_multiple_slim.py -m {config['mode']} {'--gwas ' if config['analysis_betas']=='gwas' else ''}--vary beta -dz {config['dz']} -i {{input}} -o {{output}}"
+
+rule analyze_w_grids:
+    input:
+        expand(subdir_str_dict["grids"]+config['file_prefix']+"b{b}_w{w}_s{s}_grid.csv", b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"])),
+        true_base_dir+touch_str
+    output:
+        expand(subdir_str_dict["surfaces"]+config['file_prefix']+"b{b}_w{w}_s{s}_surface.pdf", b=config["beta_default"], w=config["omega_array"], s=range(config["num_replicates"])), true_base_dir+config['file_prefix']+"w_lineplot.pdf"
+    resources:
+        mem_mb=5000
+    shell:
+        f"python analyze_multiple_slim.py -m {config['mode']} {'--gwas ' if config['analysis_betas']=='gwas' else ''}--vary omega -dz {config['dz']} -i {{input}} -o {{output}}"#input

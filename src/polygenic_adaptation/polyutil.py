@@ -76,6 +76,12 @@ def generate_betas(betas, num_loci, rng, **kwargs):
         return np.zeros(num_loci, dtype=float) + betas
     if isinstance(betas, str):
         if betas == "uniform":
+            if "std_frac_err" in kwargs:
+                betas = rng.normal(0, kwargs["std"], size=num_loci)
+                betas_hat = rng.normal(
+                    betas, np.abs(betas * kwargs["std_frac_err"]), size=num_loci
+                )
+                return betas, betas_hat
             return rng.normal(0, kwargs["std"], size=num_loci)
         return rng.choice(np.loadtxt(betas), size=num_loci, replace=True)
     msg = "Invalid type of --beta_coefficients!"
@@ -128,6 +134,8 @@ def generate_fname(**kwargs):
         fname += f"dz{kwargs['dz']}_"
     if "ic" in fkeys:
         fname += f"{kwargs['ic']}_"
+    if "std_err" in fkeys:
+        fname += f"err{kwargs['std_err']:.2f}_"
     return fname[:-1]
 
 
@@ -180,3 +188,18 @@ def vcf_to_useful_format(vcf_file, sample_times_file, years_per_gen=28.1, force=
         final_table[:, 2::3] = final_table[:, 2::3][:, ::-1]
         big_final_table = np.vstack((big_final_table, final_table))
     return big_final_table[1:, :]
+
+
+def bh_correct(p_values, alpha, yekutieli=False):
+    M = p_values.shape[0]
+    p_values_sorted = np.sort(p_values.copy())
+    bh_range = np.arange(1, M + 1)
+    if yekutieli:
+        alpha /= np.sum(1 / bh_range)
+    small_ps = np.where(p_values_sorted <= bh_range * alpha / M)[0]
+    if small_ps.shape[0] > 0:
+        k_max = np.where(p_values_sorted <= bh_range * alpha / M)[0][-1]
+    else:
+        return 1, np.array([])
+    p_k = np.sqrt(p_values_sorted[k_max] * p_values_sorted[k_max + 1])
+    return p_k, np.where(p_values <= p_k)[0]
