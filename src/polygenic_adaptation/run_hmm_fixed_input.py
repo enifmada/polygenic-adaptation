@@ -19,7 +19,8 @@ def compute_ll_wrapper(hmm, s, data_matrix, init_states):
     stab_res = hmm.compute_multiple_ll(s, 0, data_matrix, init_states)
     return direc_res, stab_res
 
-#@jit
+
+# @jit
 def compute_multiple_ll_numba_outer(a_matrix, data_matrix, N, gs, hmm_init_state):
     sample_locs_array = data_matrix[:, ::3]
     nts_array = data_matrix[:, 1::3]
@@ -41,7 +42,7 @@ def compute_multiple_ll_numba_outer(a_matrix, data_matrix, N, gs, hmm_init_state
 
     # emission probability mass function (bpmf)
     # self.bpmf_new = np.zeros((np.sum(self.nts_uq)+self.nts_uq.shape[0], self.N))
-    #??????
+    # ??????
     ll_bpmf_a = np.zeros(np.sum(ll_nts_uq) + ll_nts_uq.shape[0])
     ll_bpmf_n = np.zeros_like(ll_bpmf_a)
 
@@ -60,16 +61,34 @@ def compute_multiple_ll_numba_outer(a_matrix, data_matrix, N, gs, hmm_init_state
 
     ll_a_t_to_bpmf_idx = np.zeros_like(ll_nts)
     for i, t in np.transpose(np.nonzero(ll_nts)):
-        ll_a_t_to_bpmf_idx[i, t] = (
-            ll_obs_counts[i, t]
-            + ll_bpmf_idx[np.where(ll_nts_uq == ll_nts[i, t])[0][0] - 1]
-        )
+        ll_a_t_to_bpmf_idx[i, t] = ll_obs_counts[i, t] + ll_bpmf_idx[np.where(ll_nts_uq == ll_nts[i, t])[0][0] - 1]
     sample_times = np.nonzero(np.any(ll_nts, axis=0))[0]
     ll_alphas_tilde = np.zeros((hmm_init_state.shape[0], ll_a_t_to_bpmf_idx.shape[0]))
     ll_alphas_hat = np.zeros_like(ll_alphas_tilde)
-    return compute_multiple_ll_numba_inner(a_matrix, sample_times, ll_alphas_tilde, ll_alphas_hat, ll_T, ll_nloc, ll_bpmf_new, ll_a_t_to_bpmf_idx, hmm_init_state)
+    return compute_multiple_ll_numba_inner(
+        a_matrix,
+        sample_times,
+        ll_alphas_tilde,
+        ll_alphas_hat,
+        ll_T,
+        ll_nloc,
+        ll_bpmf_new,
+        ll_a_t_to_bpmf_idx,
+        hmm_init_state,
+    )
 
-def compute_multiple_ll_numba_inner(a_matrix, sample_times, ll_alphas_tilde, ll_alphas_hat, ll_T, ll_nloc, ll_bpmf_new, ll_a_t_to_bpmf_idx, hmm_init_state):
+
+def compute_multiple_ll_numba_inner(
+    a_matrix,
+    sample_times,
+    ll_alphas_tilde,
+    ll_alphas_hat,
+    ll_T,
+    ll_nloc,
+    ll_bpmf_new,
+    ll_a_t_to_bpmf_idx,
+    hmm_init_state,
+):
     sample_time_diffs = np.diff(sample_times)
     uq_a_powers = np.unique(sample_time_diffs)
     uq_a_exps = get_uq_a_exps(a_matrix, uq_a_powers)
@@ -105,13 +124,17 @@ def compute_multiple_ll_numba_inner(a_matrix, sample_times, ll_alphas_tilde, ll_
                 # for inner_i in range(ll_alphas_hat.shape[0]):
                 #     temp_mat_val += ll_alphas_hat[inner_i, inner_n] * temp_a_matrix[inner_i, inner_j] * ll_bpmf_new[ll_a_t_to_bpmf_idx[inner_n, t], inner_j]
                 # ll_alphas_tilde[inner_j, inner_n] = temp_mat_val
-                ll_alphas_tilde[inner_j, inner_n] = np.sum(ll_alphas_hat[:, inner_n] * temp_a_matrix[:, inner_j]) * ll_bpmf_new[ll_a_t_to_bpmf_idx[inner_n, t], inner_j]
+                ll_alphas_tilde[inner_j, inner_n] = (
+                    np.sum(ll_alphas_hat[:, inner_n] * temp_a_matrix[:, inner_j])
+                    * ll_bpmf_new[ll_a_t_to_bpmf_idx[inner_n, t], inner_j]
+                )
         ll_cs[t, :] = 1.0 / np.sum(ll_alphas_tilde, axis=0)
         for n in range(ll_cs[t, :].shape[0]):
             for inner_jj in range(ll_alphas_hat.shape[0]):
                 ll_alphas_hat[inner_jj, n] = ll_cs[t, n] * ll_alphas_tilde[inner_jj, n]
         assert np.all(np.isclose(np.sum(ll_alphas_hat, axis=0), 1.0))
     return -np.sum(np.log(ll_cs), axis=0)
+
 
 def main():
     num_hidden_states = 500
@@ -121,10 +144,9 @@ def main():
     output_path = "../../../polyoutput/slim_testing/gwasfull/grids/gwasfull_b0.015_w0.2_s0_data_profiling.csv"
     grid_s_max = 0.05
     num_grid_points = 21
-    hmm = HMM(num_hidden_states, Ne,init_dist)
+    hmm = HMM(num_hidden_states, Ne, init_dist)
 
     data_matrix = np.loadtxt(input_path, dtype=int)
-
 
     MIN_GRID_VAL = 5e-5
     pos_grid = np.geomspace(MIN_GRID_VAL, grid_s_max, num_grid_points)
@@ -135,10 +157,7 @@ def main():
 
     parallel_loop = tqdm(full_grid)
     with Parallel(n_jobs=7) as parallel:
-        res = parallel(
-            delayed(compute_ll_wrapper)(hmm, p_s, data_matrix, None)
-            for p_s in parallel_loop
-        )
+        res = parallel(delayed(compute_ll_wrapper)(hmm, p_s, data_matrix, None) for p_s in parallel_loop)
     direc_lls = [rp[0] for rp in res]
     stab_lls = [rp[1] for rp in res]
     direc_unif_lls[:, :] = np.array(direc_lls).T.squeeze()
@@ -157,7 +176,9 @@ def main():
     np.savetxt(
         output_path,
         combined_grid,
-        header="s_grid followed by direc_unif_ll+stab_unif_ll for each rep",)
+        header="s_grid followed by direc_unif_ll+stab_unif_ll for each rep",
+    )
+
 
 if __name__ == "__main__":
     main()
