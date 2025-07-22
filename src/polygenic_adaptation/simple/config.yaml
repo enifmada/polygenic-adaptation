@@ -6,7 +6,7 @@ cluster-generic-submit-cmd:
   --output=logs/{rule}/{rule}-{wildcards}-%j.out --parsable
 default-resources:
   - mem_mb=1000
-  - threads=1
+  - threads=8
 restart-times: 0
 max-jobs-per-second: 45
 max-status-checks-per-second: 2

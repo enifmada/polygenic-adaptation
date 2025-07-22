@@ -47,12 +47,8 @@ def find_peaks_greedy(ps, xs, chrs, min_height, window_size):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument(
-        "mode", nargs=1, type=str, help="currently 'LDetect' or 'greedy'"
-    )
-    parser.add_argument(
-        "--height", nargs=1, type=float, help="min height to include peak"
-    )
+    parser.add_argument("mode", nargs=1, type=str, help="currently 'LDetect' or 'greedy'")
+    parser.add_argument("--height", nargs=1, type=float, help="min height to include peak")
     parser.add_argument("--width", nargs=1, type=int, help="min distance between peaks")
     parser.add_argument("-i", "--input", nargs="*", help="input")
     parser.add_argument("-o", "--output", nargs="*", help="output")
@@ -73,9 +69,7 @@ def main():
     sumstats_array = pd.read_csv(trait_data_path, sep="\t")
 
     ashres = pd.read_csv(shrunk_ests_path)
-    sumstats_array[["ash_beta", "ash_se", "ash_p"]] = ashres[
-        ["ash_beta", "ash_se", "ash_p"]
-    ]
+    sumstats_array[["ash_beta", "ash_se", "ash_p"]] = ashres[["ash_beta", "ash_se", "ash_p"]]
 
     p_bh, _ = bh_correct(sumstats_array["ash_p"].to_numpy(), alpha)
 
@@ -88,9 +82,7 @@ def main():
         strict=False,
     )
     filtered_sumstats_array = sumstats_array[
-        sumstats_array[["SNP", "REF", "A2", "CHR", "POS"]]
-        .apply(tuple, axis=1)
-        .isin(paired_snps_alleles)
+        sumstats_array[["SNP", "REF", "A2", "CHR", "POS"]].apply(tuple, axis=1).isin(paired_snps_alleles)
     ].reset_index()
     filtered_snps = filtered_sumstats_array["SNP"].to_numpy()
     assert filtered_snps.shape[0] == np.unique(filtered_snps).shape[0]
@@ -123,13 +115,9 @@ def main():
     pruned_sumstats_array = filtered_sumstats_array.loc[idxs]
 
     pruned_sumstats_snps = pruned_sumstats_array["SNP"].to_numpy()
-    pruned_adna_idxs = np.nonzero(
-        pruned_sumstats_snps[:, None] == adna_data["all_rsid"]
-    )[1]
+    pruned_adna_idxs = np.nonzero(pruned_sumstats_snps[:, None] == adna_data["all_rsid"])[1]
     assert (
-        np.intersect1d(
-            adna_data["all_rsid"][pruned_adna_idxs], pruned_sumstats_snps
-        ).shape[0]
+        np.intersect1d(adna_data["all_rsid"][pruned_adna_idxs], pruned_sumstats_snps).shape[0]
         == pruned_adna_idxs.shape[0]
     )
 

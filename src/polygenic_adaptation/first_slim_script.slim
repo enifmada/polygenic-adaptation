@@ -82,24 +82,27 @@ log.addCustomColumn("Pos" + q, "getMutFreqByPos("+q+");");
 //		realLocus = C - i;
 //		log.addCustomColumn("LD(0,"+realLocus+")", "getLD(0,"+realLocus+");");
 //	}
+
+// evaluate and save the additive effects of QTLs
+inds = p1.individuals;
+add_phenotype_base = inds.sumOfMutationsOfType(m2);
+defineConstant("optimum", mean(add_phenotype_base));
+cat("Optimum: " + optimum + "\n");
+//add environmental variance - stolen from the SLiM manual p298
+V_A = sd(add_phenotype_base)^2;
+defineConstant("V_E", (V_A - h2*V_A)/h2);
 }
 
 mutationEffect(m2)
 { return 1.0;
 }
 1: late() {
-// evaluate and save the additive effects of QTLs
 inds = p1.individuals;
 add_phenotype = inds.sumOfMutationsOfType(m2);
-
-//add environmental variance - stolen from the SLiM manual p298
-V_A = sd(add_phenotype)^2;
-V_E = (V_A - h2*V_A)/h2;
 env = rnorm(size(inds), 0.0, sqrt(V_E));
-
 phenotypes = add_phenotype + env;
 
-optimum = 0;
+
 if (mode == "stabilizing"){
 	exp_num = (optimum-phenotypes)^2;
 	exp_denom = omega^2;
@@ -137,7 +140,7 @@ qPlusPlus = realplus[realplus.position == q];
 pf = sum(sim.mutationFrequencies(NULL, qPlus));
 mf = sum(sim.mutationFrequencies(NULL, qMinus));
 ppf = sum(sim.mutationFrequencies(NULL, qPlusPlus));
-cat(" QTL " + q + ": f(+) == " + pf + ", f(-) == " + mf + "f(pos) == "+ ppf + "\n");
+cat(" QTL " + q + ": f(+) == " + pf + ", f(-) == " + mf + " f(pos) == "+ ppf + "\n");
 }
 }
 // output samples of 10 genomes periodically, all fixed mutations at end

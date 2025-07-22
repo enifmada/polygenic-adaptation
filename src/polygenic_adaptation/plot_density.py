@@ -27,12 +27,8 @@ def main():
     small_density = np.zeros(small_xspace.shape[0] - 1)
 
     for p_i in np.arange(1, pis.shape[0]):
-        large_density += pis[p_i] * np.diff(
-            norm(loc=0, scale=sigmas[p_i]).cdf(large_xspace)
-        )
-        small_density += pis[p_i] * np.diff(
-            norm(loc=0, scale=sigmas[p_i]).cdf(small_xspace)
-        )
+        large_density += pis[p_i] * np.diff(norm(loc=0, scale=sigmas[p_i]).cdf(large_xspace))
+        small_density += pis[p_i] * np.diff(norm(loc=0, scale=sigmas[p_i]).cdf(small_xspace))
     small_density[small_density.shape[0] // 2] += pis[0]
     large_density[large_density.shape[0] // 2] += pis[0]
 

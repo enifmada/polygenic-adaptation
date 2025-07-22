@@ -36,9 +36,7 @@ class HMM:
             self.init_state = pre_istate / np.sum(pre_istate)
         elif self.init_cond == "delta":
             self.init_state = np.zeros_like(self.gs)
-            self.init_state[
-                np.clip(np.argmin(np.abs(self.gs - kwargs["p"])), 1, self.N - 2)
-            ] = 1.0
+            self.init_state[np.clip(np.argmin(np.abs(self.gs - kwargs["p"])), 1, self.N - 2)] = 1.0
         elif self.init_cond == "beta":
             self.init_state = np.zeros_like(self.gs)
             beta_param = kwargs["beta_coef"]
@@ -49,9 +47,9 @@ class HMM:
             self.init_state = np.ones_like(self.gs)
             self.init_state /= np.sum(self.init_state)
             self.init_state *= 1 - kwargs["spike_frac"]
-            self.init_state[
-                np.clip(np.argmin(np.abs(self.gs - kwargs["spike_loc"])), 1, self.N - 2)
-            ] += kwargs["spike_frac"]
+            self.init_state[np.clip(np.argmin(np.abs(self.gs - kwargs["spike_loc"])), 1, self.N - 2)] += kwargs[
+                "spike_frac"
+            ]
         else:
             msg = "Invalid initial condition specification!"
             raise TypeError(msg)
@@ -62,13 +60,11 @@ class HMM:
     def calc_transition_probs_old(self, s_vector):
         s1 = s_vector[0]
         s2 = s_vector[1]
-        p_primes = np.clip(
-            self.gs + self.gs * self.qs * (s2 * self.gs + s1 * (1 - 2 * self.gs)), 0, 1
-        )
+        p_primes = np.clip(self.gs + self.gs * self.qs * (s2 * self.gs + s1 * (1 - 2 * self.gs)), 0, 1)
         sigmas = np.sqrt(self.gs * self.qs / (2 * self.Ne))
         a_one = np.zeros((1, self.gs.shape[0]))
         a_one[:, 0] = 1.0
-        return np.concatenate(
+        a_matrix = np.concatenate(
             (
                 a_one,
                 np.diff(
@@ -83,6 +79,8 @@ class HMM:
             ),
             axis=0,
         )
+        assert np.all(np.isclose(np.sum(a_matrix, axis=1), 1))
+        return a_matrix
 
     def clip_and_renormalize(self, matrix, val):
         uniform_matrix = np.diff(self.bounds)
@@ -90,13 +88,11 @@ class HMM:
         if uniform_matrix[0] < val:
             raise ValueError
         scale_factor = val / uniform_matrix[0]
-        int_matrix = (1 - scale_factor) * (
-            matrix / np.sum(matrix)
-        ) + scale_factor * uniform_matrix
+        int_matrix = (1 - scale_factor) * (matrix / np.sum(matrix)) + scale_factor * uniform_matrix
         int_matrix /= np.sum(int_matrix)
         return int_matrix
 
-    def compute_multiple_ll(self, s1, s2, data_matrix, init_states=None):
+    def compute_multiple_ll(self, s1, s2, data_matrix):
         sample_locs_array = data_matrix[:, ::3]
         nts_array = data_matrix[:, 1::3]
         obs_counts_array = data_matrix[:, 2::3]
@@ -135,10 +131,7 @@ class HMM:
 
         ll_a_t_to_bpmf_idx = np.zeros_like(ll_nts)
         for i, t in np.transpose(np.nonzero(ll_nts)):
-            ll_a_t_to_bpmf_idx[i, t] = (
-                ll_obs_counts[i, t]
-                + ll_bpmf_idx[np.where(ll_nts_uq == ll_nts[i, t])[0][0] - 1]
-            )
+            ll_a_t_to_bpmf_idx[i, t] = ll_obs_counts[i, t] + ll_bpmf_idx[np.where(ll_nts_uq == ll_nts[i, t])[0][0] - 1]
 
         ll_a = self.calc_transition_probs_old([s1, s2])
         assert np.all(np.isclose(np.sum(ll_a, axis=1), 1))
@@ -147,15 +140,7 @@ class HMM:
         uq_a_powers = np.unique(sample_time_diffs)
         uq_a_exps = get_uq_a_exps(ll_a, uq_a_powers)
         ll_cs = np.ones((ll_T, ll_nloc))
-        if init_states is not None:
-            assert init_states.shape == (ll_nloc, self.N)
-            ll_alphas_tilde = np.einsum(
-                "ni, ni -> in", init_states, ll_bpmf_new[ll_a_t_to_bpmf_idx[:, 0], :]
-            )
-        else:
-            ll_alphas_tilde = np.einsum(
-                "i, ni->in", self.init_state, ll_bpmf_new[ll_a_t_to_bpmf_idx[:, 0], :]
-            )
+        ll_alphas_tilde = np.einsum("i, ni->in", self.init_state, ll_bpmf_new[ll_a_t_to_bpmf_idx[:, 0], :])
         ll_cs[0, :] = 1.0 / np.sum(ll_alphas_tilde, axis=0)
         ll_alphas_hat = np.einsum("n, in -> in", ll_cs[0, :], ll_alphas_tilde)
         for i, t in enumerate(sample_times[1:]):
@@ -205,9 +190,7 @@ class HMM:
         cs[0] = 1.0 / np.sum(init_state * bpmf[a_t_to_bpmf[0], :])
         alphas_hat[0, :] = cs[0] * init_state * bpmf[a_t_to_bpmf[0], :]
         for t in np.arange(1, T):
-            alphas_tilde = bpmf[a_t_to_bpmf[t], :] * np.dot(
-                alphas_hat[t - 1, :], trans_matrix
-            )
+            alphas_tilde = bpmf[a_t_to_bpmf[t], :] * np.dot(alphas_hat[t - 1, :], trans_matrix)
             cs[t] = 1.0 / np.sum(alphas_tilde)
             alphas_hat[t, :] = cs[t] * alphas_tilde
         return alphas_hat.T, cs
@@ -225,9 +208,7 @@ class HMM:
         return betas_hat.T
 
     def forward_backward_forward_one(self, init_state, a, a_t_to_bpmf_idx, bpmf_new):
-        alphas_hat, cs = self.forward_one_numba(
-            init_state, a, a_t_to_bpmf_idx, bpmf_new
-        )
+        alphas_hat, cs = self.forward_one_numba(init_state, a, a_t_to_bpmf_idx, bpmf_new)
         assert np.all(np.isclose(np.sum(alphas_hat, axis=0), 1.0))
         betas_hat = self.backward_one_numba(a, a_t_to_bpmf_idx, bpmf_new, cs)
         gammas = alphas_hat * betas_hat / cs
@@ -268,9 +249,7 @@ class HMM:
 
         a_t_to_bpmf_idx = np.zeros_like(full_nts)
         for t in np.nonzero(full_nts)[0]:
-            a_t_to_bpmf_idx[t] = (
-                full_obs_counts[t] + bpmf_idx[np.where(nts_uq == full_nts[t])[0][0] - 1]
-            )
+            a_t_to_bpmf_idx[t] = full_obs_counts[t] + bpmf_idx[np.where(nts_uq == full_nts[t])[0][0] - 1]
 
         return a_t_to_bpmf_idx, bpmf_new
 
@@ -284,24 +263,18 @@ class HMM:
         max_iter,
         min_init_val=1e-8,
     ):
-        a_t_to_bpmf_idx, bpmf_new = self.update_externals_from_datum(
-            obs_counts, nts, sample_times
-        )
+        a_t_to_bpmf_idx, bpmf_new = self.update_externals_from_datum(obs_counts, nts, sample_times)
         itercount = 0
         ll = -np.inf
         init_state = self.init_init_state
         init_params = self.init_init_params
         while itercount < max_iter:
-            cs, gammas = self.forward_backward_forward_one(
-                init_state, a, a_t_to_bpmf_idx, bpmf_new
-            )
+            cs, gammas = self.forward_backward_forward_one(init_state, a, a_t_to_bpmf_idx, bpmf_new)
             ll_new = -np.sum(np.log(cs))
             if ll_new - ll < tol:
                 return init_state, init_params
             ll = ll_new
-            init_state, init_params = self.update_init_beta(
-                gammas[:, 0], init_params, min_init_val=min_init_val
-            )
+            init_state, init_params = self.update_init_beta(gammas[:, 0], init_params, min_init_val=min_init_val)
             itercount += 1
         return None
 

@@ -14,9 +14,9 @@ from tqdm import tqdm
 from polygenic_adaptation.hmm_core import HMM
 
 
-def compute_ll_wrapper(hmm, s, data_matrix, init_states):
-    direc_res = hmm.compute_multiple_ll(s / 2, s, data_matrix, init_states)
-    stab_res = hmm.compute_multiple_ll(s, 0, data_matrix, init_states)
+def compute_ll_wrapper(hmm, s, data_matrix):
+    direc_res = hmm.compute_multiple_ll(s / 2, s, data_matrix)
+    stab_res = hmm.compute_multiple_ll(s, 0, data_matrix)
     return direc_res, stab_res
 
 
@@ -72,15 +72,9 @@ def main():
         default="uniform",
         help="initial initial condition to use",
     )
-    parser.add_argument(
-        "--sid_dict", nargs="*", default="", help="initial condition dictionary"
-    )
-    parser.add_argument(
-        "-Ne", type=int, default=10000, help="effective population size for the HMM"
-    )
-    parser.add_argument(
-        "--progressbar", action="store_true", help="adds a tqdm progress bar"
-    )
+    parser.add_argument("--sid_dict", nargs="*", default="", help="initial condition dictionary")
+    parser.add_argument("-Ne", type=int, default=10000, help="effective population size for the HMM")
+    parser.add_argument("--progressbar", action="store_true", help="adds a tqdm progress bar")
     parser.add_argument(
         "--save_csv",
         action="store_true",
@@ -146,9 +140,7 @@ def main():
         data_matrix = np.zeros((1,))
 
     MIN_GRID_VAL = 5e-5
-    pos_grid = np.geomspace(
-        MIN_GRID_VAL, args_dict["grid_s_max"], args_dict["num_half_grid_points"]
-    )
+    pos_grid = np.geomspace(MIN_GRID_VAL, args_dict["grid_s_max"], args_dict["num_half_grid_points"])
     full_grid = np.concatenate((-pos_grid[::-1], [0], pos_grid))
 
     np.linspace(-args_dict["grid_s_max"], args_dict["grid_s_max"], 1001)
@@ -158,26 +150,15 @@ def main():
     if args_dict["num_cores"] > 1:
         parallel_loop = tqdm(full_grid) if args_dict["progressbar"] else full_grid
         with Parallel(n_jobs=args_dict["num_cores"]) as parallel:
-            res = parallel(
-                delayed(compute_ll_wrapper)(hmm, p_s, data_matrix, None)
-                for p_s in parallel_loop
-            )
+            res = parallel(delayed(compute_ll_wrapper)(hmm, p_s, data_matrix) for p_s in parallel_loop)
         direc_lls = [rp[0] for rp in res]
         stab_lls = [rp[1] for rp in res]
         direc_unif_lls[:, :] = np.array(direc_lls).T.squeeze()
         stab_unif_lls[:, :] = np.array(stab_lls).T.squeeze()
     else:
-        for s_i, s in (
-            enumerate(tqdm(full_grid))
-            if args_dict["progressbar"]
-            else enumerate(full_grid)
-        ):
-            direc_unif_lls[:, s_i] = hmm.compute_multiple_ll(
-                s1=s / 2, s2=s, data_matrix=data_matrix, init_states=None
-            )
-            stab_unif_lls[:, s_i] = hmm.compute_multiple_ll(
-                s1=s, s2=0, data_matrix=data_matrix, init_states=None
-            )
+        for s_i, s in enumerate(tqdm(full_grid)) if args_dict["progressbar"] else enumerate(full_grid):
+            direc_unif_lls[:, s_i] = hmm.compute_multiple_ll(s1=s / 2, s2=s, data_matrix=data_matrix)
+            stab_unif_lls[:, s_i] = hmm.compute_multiple_ll(s1=s, s2=0, data_matrix=data_matrix)
 
     combined_grid = np.zeros((2 * direc_unif_lls.shape[0] + 1, direc_unif_lls.shape[1]))
     combined_grid[0, :] = full_grid

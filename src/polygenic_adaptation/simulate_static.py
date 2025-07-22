@@ -37,9 +37,7 @@ def main():
         default=16,
         help="number of replicates - NOT number of loci per sim",
     )
-    parser.add_argument(
-        "-nl", "--num_loci", type=int, default=64, help="number of loci per replicate"
-    )
+    parser.add_argument("-nl", "--num_loci", type=int, default=64, help="number of loci per replicate")
     parser.add_argument(
         "-S",
         "--sel_gradients",
@@ -101,18 +99,14 @@ def main():
         default=11,
         help="number of times to draw samples",
     )
-    parser.add_argument(
-        "-Ne", type=int, default=10000, help="effective population size"
-    )
+    parser.add_argument("-Ne", type=int, default=10000, help="effective population size")
     parser.add_argument("--seed", type=int, default=6, help="seed")
     parser.add_argument(
         "--save_plots",
         action="store_true",
         help="save plots of all of the replicate trajectories",
     )
-    parser.add_argument(
-        "--prefix", type=str, default="", help="file names prefix to differentiate runs"
-    )
+    parser.add_argument("--prefix", type=str, default="", help="file names prefix to differentiate runs")
     parser.add_argument(
         "--snakemake",
         action="store_true",
@@ -132,9 +126,7 @@ def main():
     if "std_frac_err_matrix" not in args_dict["beta_params"]:
         args_dict["beta_params"]["std_frac_err_matrix"] = [0]
     else:
-        args_dict["beta_params"]["std_frac_err_matrix"] = loads(
-            args_dict["beta_params"]["std_frac_err_matrix"]
-        )
+        args_dict["beta_params"]["std_frac_err_matrix"] = loads(args_dict["beta_params"]["std_frac_err_matrix"])
     for S, dz, g, ic, std_err in itprod(
         args_dict["sel_gradients"],
         args_dict["delta_z"],
@@ -180,9 +172,7 @@ def main():
 
             # sample freqs
             nonzero_sample_locs = np.any(ns_matrix > 0, axis=0)
-            sampled_freqs = rng.binomial(
-                ns_matrix[:, nonzero_sample_locs], freqs[:, nonzero_sample_locs]
-            )
+            sampled_freqs = rng.binomial(ns_matrix[:, nonzero_sample_locs], freqs[:, nonzero_sample_locs])
 
             data_matrix = np.zeros((freqs.shape[0], sampled_freqs.shape[1] * 3))
             data_matrix[:, ::3] = np.where(nonzero_sample_locs)[0]
@@ -209,9 +199,7 @@ def main():
             )
 
     if "snakemake" not in args_dict or not args_dict["snakemake"]:
-        json_fname = (
-            f"{args_dict['output_directory']}/{args_dict['prefix']}_params.json"
-        )
+        json_fname = f"{args_dict['output_directory']}/{args_dict['prefix']}_params.json"
         with Path(json_fname).open("w", encoding="locale") as file:
             jdump(args_dict, file)
 

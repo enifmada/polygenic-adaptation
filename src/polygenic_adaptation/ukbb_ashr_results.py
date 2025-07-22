@@ -14,9 +14,7 @@ ash_cols_needed = ashres_res.rx(
     r.c("betahat", "sebetahat", "PosteriorMean", "PosteriorSD", "svalue", "qvalue"),
 )
 
-cols = [
-    list(r["as.numeric"](ash_cols_needed.rx2(i + 1))) for i in range(len(col_names))
-]
+cols = [list(r["as.numeric"](ash_cols_needed.rx2(i + 1))) for i in range(len(col_names))]
 
 ashres_np = np.column_stack(cols)
 

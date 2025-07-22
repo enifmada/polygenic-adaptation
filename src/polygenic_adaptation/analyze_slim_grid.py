@@ -54,15 +54,9 @@ def main():
         summed_unif_dlls = np.zeros_like(expanded_direc_x)
         summed_unif_slls = np.zeros_like(expanded_stab_x)
         summed_unif_slls_errcorr = np.zeros_like(expanded_stab_x)
-        all_dll_unif_ests = np.zeros(
-            (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-        )
-        all_sll_unif_ests = np.zeros(
-            (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-        )
-        all_sll_unif_ests_errcorr = np.zeros(
-            (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-        )
+        all_dll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
+        all_sll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
+        all_sll_unif_ests_errcorr = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
         for loc in range(dll_unif_vals.shape[0]):
             # *2 b/c conversion from s2 = s to s1 = s
             sdz_est_grid = raw_grid / (2 * betas[loc])
@@ -70,19 +64,13 @@ def main():
             s_est_grid = raw_grid / (betas[loc] ** 2 / 2)
             sll_unif_spline = CubicSpline(s_est_grid, sll_unif_vals[loc, :])
 
-            s_est_grid_errcorr = raw_grid / (
-                max((betas[loc] ** 2 - err_val**2), 0.0001) / 2
-            )
-            sll_unif_spline_errcorr = CubicSpline(
-                s_est_grid_errcorr, sll_unif_vals[loc, :]
-            )
+            s_est_grid_errcorr = raw_grid / (max((betas[loc] ** 2 - err_val**2), 0.0001) / 2)
+            sll_unif_spline_errcorr = CubicSpline(s_est_grid_errcorr, sll_unif_vals[loc, :])
 
             if betas[loc] >= 0:
                 dll_unif_spline = CubicSpline(sdz_est_grid, dll_unif_vals[loc, :])
             else:
-                dll_unif_spline = CubicSpline(
-                    sdz_est_grid[::-1], dll_unif_vals[loc, ::-1]
-                )
+                dll_unif_spline = CubicSpline(sdz_est_grid[::-1], dll_unif_vals[loc, ::-1])
 
             dll_unif_ests = dll_unif_spline(expanded_direc_x)
             all_dll_unif_ests[loc, :] = dll_unif_ests
@@ -103,9 +91,7 @@ def main():
         sll_unif_argmax = expanded_stab_x[np.argmax(summed_unif_slls)]
 
         np.max(summed_unif_slls_errcorr)
-        sll_unif_argmax_errcorr = expanded_stab_x_errcorr[
-            np.argmax(summed_unif_slls_errcorr)
-        ]
+        sll_unif_argmax_errcorr = expanded_stab_x_errcorr[np.argmax(summed_unif_slls_errcorr)]
 
         fig, axs = plt.subplots(1, 3, figsize=(15, 5), layout="constrained")
         for loc in range(dll_unif_vals.shape[0]):
@@ -143,9 +129,7 @@ def main():
             f"Direc max = {dll_unif_argmax:.4f} Stab max = {sll_unif_argmax:.4f} Errcorr stab max = {sll_unif_argmax_errcorr:.4f}"
         )
         fig.savefig(
-            Path(smk.output[0]).with_stem(
-                Path(smk.output[0]).name + f"{err_val}err.pdf"
-            ),
+            Path(smk.output[0]).with_stem(Path(smk.output[0]).name + f"{err_val}err.pdf"),
             format="pdf",
             bbox_inches="tight",
         )

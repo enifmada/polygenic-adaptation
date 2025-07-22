@@ -26,27 +26,21 @@ def get_params(fname):
         elif fpart[0] == "s" and not seed_flag:
             seed = int(fpart[1:])
             seed_flag = True
-    if beta > 0 and omega > 0:
+    if omega > 0:
         return beta, omega, seed
     raise ValueError
 
 
 def compute_avg_variance(slim_array, betas_array):
-    init_variance = 2 * np.sum(
-        slim_array[3:, 0] * (1 - slim_array[3:, 0]) * betas_array**2
-    )
-    final_variance = 2 * np.sum(
-        slim_array[3:, -1] * (1 - slim_array[3:, -1]) * betas_array**2
-    )
+    init_variance = 2 * np.sum(slim_array[3:, 0] * (1 - slim_array[3:, 0]) * betas_array**2)
+    final_variance = 2 * np.sum(slim_array[3:, -1] * (1 - slim_array[3:, -1]) * betas_array**2)
     return (init_variance + final_variance) / 2
 
 
 def main():
     parser = ArgumentParser()
     parser.add_argument("-m", "--mode", help="mode of selection")
-    parser.add_argument(
-        "-dz", type=float, help="distance to optimum (directional only)"
-    )
+    parser.add_argument("-dz", type=float, help="distance to optimum (directional only)")
     parser.add_argument("--vary", type=str, help="variable to vary")
     parser.add_argument("-i", "--input", nargs="*", help="input")
     parser.add_argument("-o", "--output", nargs="*", help="output")
@@ -75,9 +69,7 @@ def main():
             slim_array = np.loadtxt(slim_path / slim_fname, skiprows=1).T
 
             betas_path = Path(smk.input[input_i]).parent.parent / "betas"
-            betas_fname = (
-                Path(smk.input[input_i]).name.rpartition("_")[0] + "_betas.txt"
-            )
+            betas_fname = Path(smk.input[input_i]).name.rpartition("_")[0] + "_betas.txt"
             betas_array = np.loadtxt(betas_path / betas_fname)
 
             betas.append(np.max(np.abs(betas_array)))
@@ -94,9 +86,7 @@ def main():
             sll_unif_vals = grid[2::2, :]
             grid_betas = np.zeros_like(betas_array)
             for i in np.arange(betas_array.shape[0]):
-                grid_betas[i] = rng.normal(
-                    betas_array[i], np.abs(frac_err * betas_array[i])
-                )
+                grid_betas[i] = rng.normal(betas_array[i], np.abs(frac_err * betas_array[i]))
             max_signed_beta = np.max(np.abs(grid_betas))
             # [cur_bulmer ** 2, cur_bulmer ** 2 * (1 + frac_err ** 2), cur_bulmer ** 2 * (1 - frac_err ** 2)]
             for corr_factor, gb_text in zip(
@@ -122,29 +112,19 @@ def main():
 
                 summed_unif_dlls = np.zeros_like(expanded_direc_x)
                 summed_unif_slls = np.zeros_like(expanded_stab_x)
-                all_dll_unif_ests = np.zeros(
-                    (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-                )
-                all_sll_unif_ests = np.zeros(
-                    (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-                )
+                all_dll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
+                all_sll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
                 for loc in range(dll_unif_vals.shape[0]):
                     # *2 b/c conversion from s2 = s to s1 = s
                     sdz_est_grid = raw_grid / (2 * grid_betas[loc])
                     # /2 b/c I think that's the right coefficient in the actual equations?
                     s_est_grid = raw_grid / (grid_betas[loc] ** 2 * corr_factor)
-                    sll_unif_spline = PchipInterpolator(
-                        s_est_grid, sll_unif_vals[loc, :]
-                    )
+                    sll_unif_spline = PchipInterpolator(s_est_grid, sll_unif_vals[loc, :])
 
                     if grid_betas[loc] >= 0:
-                        dll_unif_spline = PchipInterpolator(
-                            sdz_est_grid, dll_unif_vals[loc, :]
-                        )
+                        dll_unif_spline = PchipInterpolator(sdz_est_grid, dll_unif_vals[loc, :])
                     else:
-                        dll_unif_spline = PchipInterpolator(
-                            sdz_est_grid[::-1], dll_unif_vals[loc, ::-1]
-                        )
+                        dll_unif_spline = PchipInterpolator(sdz_est_grid[::-1], dll_unif_vals[loc, ::-1])
 
                     dll_unif_ests = dll_unif_spline(expanded_direc_x)
                     all_dll_unif_ests[loc, :] = dll_unif_ests
@@ -198,9 +178,7 @@ def main():
                     axs[1].axvline(stab_s2l_raw_2, color="k", ls="--")
                     axs[0].set_title("Unif Direc")
                     axs[1].set_title("Unif Stab")
-                    fig.suptitle(
-                        f"Direc max = {dll_unif_argmax:.4f} Stab max = {sll_unif_argmax:.4f}"
-                    )
+                    fig.suptitle(f"Direc max = {dll_unif_argmax:.4f} Stab max = {sll_unif_argmax:.4f}")
                     output_path = Path(smk.output[input_i])
                     err_str = f"err{frac_err}_{gb_text}" if frac_err > 0 else ""
                     fig.savefig(
@@ -223,17 +201,13 @@ def main():
         # account for bulmer - d/Vg = more complicated eq 17
         # X = (omegas**2 + 0) / sigma_sqs
         # 1 - (3 + X - np.sqrt(1 + 6 * X + X**2)) / 4
-        if smk.mode == "directional":
-            str_theory = smk.dz / (omegas**2)
-        else:
-            # already accounted for the Bulmer effect, hopefully?
-            str_theory = 1 / (omegas**2 + sigma_sqs)
+
+        # already accounted for the Bulmer effect, hopefully?
+        str_theory = smk.dz / (omegas**2) if smk.mode == "directional" else 1 / (omegas**2 + sigma_sqs)
 
         fig, axs = plt.subplots(1, 1, figsize=(6, 6), layout="constrained")
         for ct in correction_types:
-            axs.plot(
-                x_data, np.abs(np.array(str_ests[ct])), ".", label=f"Estimate ({ct})"
-            )
+            axs.plot(x_data, np.abs(np.array(str_ests[ct])), ".", label=f"Estimate ({ct})")
         axs.plot(x_data, str_theory, "r.", label="Theory")
         axs.set_xlabel(x_label)
         axs.legend()

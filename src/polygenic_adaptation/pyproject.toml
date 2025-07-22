@@ -85,6 +85,7 @@ report.exclude_also = [
 [tool.ruff]
 src = ["src"]
 exclude=["extract_vcfs/gdc"]
+line-length = 120
 
 [tool.ruff.lint]
 extend-select = [

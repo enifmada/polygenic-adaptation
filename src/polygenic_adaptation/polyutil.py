@@ -32,10 +32,7 @@ def generate_poly_sims(
         p_prime = (
             full_res[:, i]
             + direc_coeffs * full_res[:, i] * (1 - full_res[:, i])
-            - stab_coeffs
-            * full_res[:, i]
-            * (1 - full_res[:, i])
-            * (1 - 2 * full_res[:, i])
+            - stab_coeffs * full_res[:, i] * (1 - full_res[:, i]) * (1 - 2 * full_res[:, i])
         )
         full_res[:, i + 1] = rng_object.binomial((2 * Ne), p_prime) / (2 * Ne)
         if np.all(full_res[:, i + 1] <= 0):
@@ -52,9 +49,7 @@ def generate_initial_condition(ic, num_loci, rng):
     return None
 
 
-def generate_sampling_matrix(
-    data_matched_tf: bool, num_loci, g_or_means, spt_or_missingness, nst_or_sampletable
-):
+def generate_sampling_matrix(data_matched_tf: bool, num_loci, g_or_means, spt_or_missingness, nst_or_sampletable):
     if data_matched_tf:
         assert isinstance(g_or_means, str)
         assert isinstance(spt_or_missingness, str)
@@ -64,9 +59,7 @@ def generate_sampling_matrix(
     assert isinstance(spt_or_missingness, int)
     assert isinstance(nst_or_sampletable, int)
     sampling_matrix = np.zeros((num_loci, g_or_means + 1), dtype=int)
-    sample_locs = np.linspace(
-        0, sampling_matrix.shape[1] - 1, nst_or_sampletable, dtype=int
-    )
+    sample_locs = np.linspace(0, sampling_matrix.shape[1] - 1, nst_or_sampletable, dtype=int)
     sampling_matrix[:, sample_locs] = spt_or_missingness
     return sampling_matrix
 
@@ -78,9 +71,7 @@ def generate_betas(betas, num_loci, rng, **kwargs):
         if betas == "uniform":
             if "std_frac_err" in kwargs:
                 betas = rng.normal(0, kwargs["std"], size=num_loci)
-                betas_hat = rng.normal(
-                    betas, np.abs(betas * kwargs["std_frac_err"]), size=num_loci
-                )
+                betas_hat = rng.normal(betas, np.abs(betas * kwargs["std_frac_err"]), size=num_loci)
                 return betas, betas_hat
             return rng.normal(0, kwargs["std"], size=num_loci)
         return rng.choice(np.loadtxt(betas), size=num_loci, replace=True)
@@ -102,11 +93,7 @@ def get_uq_a_exps(a, powers):
 
 def generate_states_new(n_total, hidden_interp):
     if hidden_interp == "chebyshev":
-        chebyshev_pts = (
-            1 / 2
-            + np.cos((2 * np.arange(1, n_total - 1) - 1) * np.pi / (2 * (n_total - 2)))
-            / 2
-        )
+        chebyshev_pts = 1 / 2 + np.cos((2 * np.arange(1, n_total - 1) - 1) * np.pi / (2 * (n_total - 2))) / 2
         all_pts = np.concatenate((np.array([0]), chebyshev_pts[::-1], np.array([1])))
         return all_pts, generate_bounds(all_pts)
     if hidden_interp == "linear":
@@ -143,23 +130,17 @@ def vcf_to_useful_format(vcf_file, sample_times_file, years_per_gen=28.1, force=
     sample_times_ordered = np.copy(sample_times_file)
     sample_times_ordered[:, 1] //= years_per_gen
     max_sample_time = np.max(sample_times_ordered[:, 1])
-    sample_times_ordered = sample_times_ordered[
-        np.argsort(sample_times_ordered[:, 0]), :
-    ]
+    sample_times_ordered = sample_times_ordered[np.argsort(sample_times_ordered[:, 0]), :]
     correct_order_idxs = vcf_file["samples"].argsort().argsort()
     sample_times_ordered = sample_times_ordered[correct_order_idxs, :]
-    sample_times, sample_idxs = np.unique(
-        sample_times_ordered[:, 1], return_inverse=True
-    )
+    sample_times, sample_idxs = np.unique(sample_times_ordered[:, 1], return_inverse=True)
     chroms = vcf_file["variants/CHROM"].astype(int)
 
     # if we're doing genome-wide thresholds?
     np.any(vcf_file["calldata/GT"][:, :, 1] >= 0, axis=0)
     if np.all(vcf_file["calldata/GT"][:, :, 0] == vcf_file["calldata/GT"][:, :, 1]):
         if not force or force not in ["haploid", "diploid"]:
-            msg = (
-                "VCF call data is all homozygotes - must use --force [haploid/diploid]!"
-            )
+            msg = "VCF call data is all homozygotes - must use --force [haploid/diploid]!"
             raise TypeError(msg)
         if force == "haploid":
             vcf_file["calldata/GT"][:, :, 1] = -1
@@ -168,13 +149,8 @@ def vcf_to_useful_format(vcf_file, sample_times_file, years_per_gen=28.1, force=
         final_table = np.zeros(((chroms == chrom).sum(), sample_times.shape[0] * 3))
         for sample_i in range(sample_times.shape[0]):
             sample_indices = np.where(sample_i == sample_idxs)[0]
-            assert (
-                vcf_file["samples"][sample_indices]
-                == sample_times_ordered[sample_indices, 0]
-            ).all()
-            relevant_calls_nd = np.squeeze(
-                vcf_file["calldata/GT"][:, sample_indices, :]
-            )
+            assert (vcf_file["samples"][sample_indices] == sample_times_ordered[sample_indices, 0]).all()
+            relevant_calls_nd = np.squeeze(vcf_file["calldata/GT"][:, sample_indices, :])
             num_samples_nd = np.sum(relevant_calls_nd >= 0, axis=-1)
             num_zeros_nd = np.sum(relevant_calls_nd == 0, axis=-1)
             if relevant_calls_nd.ndim > 2:

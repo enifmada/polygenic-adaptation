@@ -26,10 +26,7 @@ def main():
     ash_gs = ashres.rx2("fitted_g")
     ashres_res = ashres.rx2("result")
     ash_cols_needed = ashres_res.rx(True, r.c("PosteriorMean", "PosteriorSD", "qvalue"))
-    cols = [
-        list(r["as.numeric"](ash_cols_needed.rx2(i + 1)))
-        for i in range(len(ash_col_names))
-    ]
+    cols = [list(r["as.numeric"](ash_cols_needed.rx2(i + 1))) for i in range(len(ash_col_names))]
     ashres_np = np.column_stack(cols)
     pi_0 = np.max(ashres_np[:, -1])
     m_0 = ashres_np.shape[0] * pi_0

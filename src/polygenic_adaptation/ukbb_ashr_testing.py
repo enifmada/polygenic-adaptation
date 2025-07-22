@@ -18,9 +18,7 @@ start = time.time()
 ashres = ashr.ash(r_df.rx2("Beta"), r_df.rx2("se"), mixcompdist="normal")
 ashres_res = ashres.rx2("result")
 ash_cols_needed = ashres_res.rx(True, r.c("PosteriorMean", "PosteriorSD"))
-cols = [
-    list(r["as.numeric"](ash_cols_needed.rx2(i + 1))) for i in range(len(col_names))
-]
+cols = [list(r["as.numeric"](ash_cols_needed.rx2(i + 1))) for i in range(len(col_names))]
 ashres_np = np.column_stack(cols)
 data_array[["ash_beta", "ash_se"]] = ashres_np
 data_array.to_csv()

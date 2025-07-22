@@ -50,12 +50,8 @@ def main():
         stab_s2l_raw_2 = raw_grid[-2] / (max_signed_beta**2 / 2)
         summed_unif_dlls = np.zeros_like(expanded_direc_x)
         summed_unif_slls = np.zeros_like(expanded_stab_x)
-        all_dll_unif_ests = np.zeros(
-            (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-        )
-        all_sll_unif_ests = np.zeros(
-            (dll_unif_vals.shape[0], summed_unif_dlls.shape[0])
-        )
+        all_dll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
+        all_sll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
         for loc in range(dll_unif_vals.shape[0]):
             # *2 b/c conversion from s2 = s to s1 = s
             sdz_est_grid = raw_grid / (2 * betas[loc])
@@ -66,9 +62,7 @@ def main():
             if betas[loc] >= 0:
                 dll_unif_spline = CubicSpline(sdz_est_grid, dll_unif_vals[loc, :])
             else:
-                dll_unif_spline = CubicSpline(
-                    sdz_est_grid[::-1], dll_unif_vals[loc, ::-1]
-                )
+                dll_unif_spline = CubicSpline(sdz_est_grid[::-1], dll_unif_vals[loc, ::-1])
 
             dll_unif_ests = dll_unif_spline(expanded_direc_x)
             all_dll_unif_ests[loc, :] = dll_unif_ests
@@ -102,8 +96,7 @@ def main():
         axs[1].set_title("Unif Stab")
         fig.suptitle(f"{grid_i}")
         fig.savefig(
-            Path(smk.output[1]).parent
-            / f"{Path(smk.input[grid_i]).stem}_all_pchip_ests.pdf",
+            Path(smk.output[1]).parent / f"{Path(smk.input[grid_i]).stem}_all_pchip_ests.pdf",
             format="pdf",
             bbox_inches="tight",
         )
@@ -138,9 +131,7 @@ def main():
     plt.close(fig1)
 
     fig2, axs2 = plt.subplots(1, 1, figsize=(15, 15), layout="constrained")
-    axs2.plot(
-        np.arange(len(stab_unif_estimates)) + 1, stab_unif_estimates[stab_argsort], "b*"
-    )
+    axs2.plot(np.arange(len(stab_unif_estimates)) + 1, stab_unif_estimates[stab_argsort], "b*")
     axs2.set_xticks(
         np.arange(len(stab_unif_estimates)) + 1,
         labels=trait_names[stab_argsort],

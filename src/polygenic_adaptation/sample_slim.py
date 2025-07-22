@@ -27,7 +27,7 @@ def get_params(fname):
         elif fpart[0] == "s" and not seed_flag:
             seed = int(fpart[1:])
             seed_flag = True
-    if beta > 0 and omega > 0:
+    if omega > 0:
         return beta, omega, seed
     raise ValueError
 
