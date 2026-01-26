@@ -1,0 +1,19 @@
+{
+  "min_r2": 0.1,
+  "min_height": 5e-4,
+  "window_size": 250,
+  "hmm_Ne": 9715,
+  "hidden_states": 500,
+  "hmm_init_dist": "uniform",
+  "grid_s_max": 0.25,
+  "num_half_grid_points": 21,
+  "suffix": "_smallerclump",
+  "pheno_list_file": "pheno_list_final.txt",
+  "pheno_loc_file": "pheno_awslocs_final.txt",
+  "ld_list_file": "aws_contents.txt",
+  "adna_data_file": "GB_v54.1_capture_only_all_chroms.csv",
+  "adna_info_file": "GB_v54.1_capture_only_agg_data.pkl",
+  "pheno_descr_file": "pheno_descriptions_final.parquet",
+  "end_gen": 154,
+  "end_ns": 200
+}
