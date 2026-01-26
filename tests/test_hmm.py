@@ -18,11 +18,11 @@ def example_sampled_data():
 
 def test_neutral_ll(example_sampled_data):
     test_hmm = HMM(num_approx=500, Ne=10000, init_cond="uniform")
-    lls = test_hmm.compute_multiple_ll(0, 0, example_sampled_data)
+    lls = test_hmm.compute_multiple_ll(0, 0, example_sampled_data)[0]
     np.testing.assert_allclose(np.array([-3.23774647, -10.38231924]), lls)
 
 
 def test_sel_lls(example_sampled_data):
     test_hmm = HMM(num_approx=500, Ne=10000, init_cond="uniform")
-    lls = test_hmm.compute_multiple_ll(0.1, 0.2, example_sampled_data)
+    lls = test_hmm.compute_multiple_ll(0.1, 0.2, example_sampled_data)[0]
     np.testing.assert_allclose(np.array([-1.86616165, -12.79082467]), lls)
