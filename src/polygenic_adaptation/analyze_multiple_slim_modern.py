@@ -23,7 +23,7 @@ def get_params(fname, vars, prefixes):
         if fpart[0] in prefixes and not flags_dict[vars[prefixes.index(fpart[0])]]:
             vars_dict[vars[prefixes.index(fpart[0])]] = float(fpart[1:])
             flags_dict[vars[prefixes.index(fpart[0])]] = True
-        #this is awful
+        # this is awful
         elif fpart[:2] in prefixes and not flags_dict[vars[prefixes.index(fpart[:2])]]:
             vars_dict[vars[prefixes.index(fpart[:2])]] = float(fpart[2:])
             flags_dict[vars[prefixes.index(fpart[:2])]] = True
@@ -72,7 +72,13 @@ def main():
     parser.add_argument("-i", "--input", nargs="*", help="input")
     parser.add_argument("--output_parquet", help="output path")
     parser.add_argument("--beta_file", type=str, default="", help="path to beta file")
-    parser.add_argument("--global_vg", nargs=2, default=["", ""], type=str, help="paths to beta and freq files if not using replicate-specific variance estimates")
+    parser.add_argument(
+        "--global_vg",
+        nargs=2,
+        default=["", ""],
+        type=str,
+        help="paths to beta and freq files if not using replicate-specific variance estimates",
+    )
     parser.add_argument("--sim_source", default="slim", type=str, help="slim vs polysim")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--use_omega", action="store_true", help="data is omega (rather than V_S) based")
@@ -81,7 +87,7 @@ def main():
     smk = parser.parse_args()
 
     assert smk.mode in ("directional", "stabilizing")
-    #assert smk.vary in ("beta", "omega")
+    # assert smk.vary in ("beta", "omega")
 
     if smk.mode == "directional":
         # *2 b/c conversion from s2 = s to s1 = s
@@ -94,7 +100,6 @@ def main():
         SCALING_FACTOR = 0.5
         PLOT_FACTOR = -1
 
-
     omega_dict_str = "omegas" if smk.use_omega else "vs"
 
     known_vars = ["omega", "seed", "loci", "h2", "vs"]
@@ -105,7 +110,7 @@ def main():
     if GLOBAL_VG_FLAG:
         all_betas = np.loadtxt(smk.global_vg[0])
         all_freqs = np.loadtxt(smk.global_vg[1])
-        global_vg = 2 * np.sum(all_betas ** 2 * all_freqs * (1 - all_freqs))
+        global_vg = 2 * np.sum(all_betas**2 * all_freqs * (1 - all_freqs))
         num_global_snps = all_betas.shape[0]
 
     betas = []
@@ -151,7 +156,7 @@ def main():
             else:
                 freqs_rows_idx = 0 if smk.sim_source == "polysim" else 3
                 sigma_sq = compute_avg_variance(sim_array[freqs_rows_idx:, :], true_betas_array)
-            
+
             V_E = sigma_sq * (1 - smk.h2) / smk.h2
             temp_X = (temp_omegasomething + V_E) / sigma_sq
             _temp_d_over_vg = (3 + temp_X - np.sqrt(1 + 6 * temp_X + temp_X**2)) / 4
@@ -279,7 +284,12 @@ def main():
 
             summed_lls = np.sum(actual_lls, axis=0)
             comp_spline = CubicSpline(expanded_true_x, summed_lls)
-            possible_maxes = np.concatenate((comp_spline.derivative(1).roots(discontinuity=True, extrapolate=False), np.array([expanded_true_x[0], expanded_true_x[-1]])))
+            possible_maxes = np.concatenate(
+                (
+                    comp_spline.derivative(1).roots(discontinuity=True, extrapolate=False),
+                    np.array([expanded_true_x[0], expanded_true_x[-1]]),
+                )
+            )
             unif_ll_maxloc = possible_maxes[np.argmax(comp_spline(possible_maxes))]
             str_ests[b_i].append(unif_ll_maxloc)
             fig, axs = plt.subplots(1, 1, figsize=(5, 5), layout="constrained")
@@ -306,8 +316,21 @@ def main():
 
     str_ests *= PLOT_FACTOR
 
-    labels = ["files", "modes", "dzs", "h2s", omega_dict_str, "sigma_sqs", "x_vars", "S_ests_true", "S_errs_true",
-              "S_ests_wls", "S_errs_wls", "S_ests_odr", "S_errs_odr"]
+    labels = [
+        "files",
+        "modes",
+        "dzs",
+        "h2s",
+        omega_dict_str,
+        "sigma_sqs",
+        "x_vars",
+        "S_ests_true",
+        "S_errs_true",
+        "S_ests_wls",
+        "S_errs_wls",
+        "S_ests_odr",
+        "S_errs_odr",
+    ]
     omegas = np.array(omegas)
     betas = np.array(betas)
     sigma_sqs = np.array(sigma_sqs)
@@ -326,12 +349,25 @@ def main():
     modes = [smk.mode] * x_vars.shape[0]
     modes = np.array(modes)
 
-    datas = [smk.input[:-1], modes, dzs, h2s, omegas, sigma_sqs, x_vars, S_ests_true, S_errs_true, S_ests_wls,
-             S_errs_wls, S_ests_odr, S_errs_odr]
+    data = [
+        smk.input[:-1],
+        modes,
+        dzs,
+        h2s,
+        omegas,
+        sigma_sqs,
+        x_vars,
+        S_ests_true,
+        S_errs_true,
+        S_ests_wls,
+        S_errs_wls,
+        S_ests_odr,
+        S_errs_odr,
+    ]
 
     data_dict = {}
-    for label, data in zip(labels, datas, strict=False):
-        data_dict[label] = data
+    for label, datum in zip(labels, data, strict=False):
+        data_dict[label] = datum
 
     dframe = pd.DataFrame(data_dict)
     dframe.to_parquet(path=smk.output_parquet)

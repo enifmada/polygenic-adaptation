@@ -22,28 +22,31 @@ def clump_peaks(ps, xs, r2_matrix, min_r2, min_height, window_size_kb):
         in_ld_locs = xs[poss_r2[max_idx] > min_r2]
         in_ld_min = np.min(in_ld_locs)
         in_ld_max = np.max(in_ld_locs)
-        mask_ub = min(in_ld_max - poss_xs[max_idx], 1000*window_size_kb)
-        mask_lb = min(poss_xs[max_idx] - in_ld_min, 1000*window_size_kb)
+        mask_ub = min(in_ld_max - poss_xs[max_idx], 1000 * window_size_kb)
+        mask_lb = min(poss_xs[max_idx] - in_ld_min, 1000 * window_size_kb)
         surr_mask = (poss_xs <= poss_xs[max_idx] + mask_ub) & (poss_xs >= poss_xs[max_idx] - mask_lb)
         poss_peaks[surr_mask] = np.inf
         idxs.append(poss_to_real_idxs[max_idx])
     return idxs
 
+
 def clump_block(trait_df, ld_fpath, min_r2, min_height, window_size_kb):
-    #print(f"we clumpin {ld_fpath}")
+    # print(f"we clumpin {ld_fpath}")
     ld_path = Path(ld_fpath)
     chr_info, block_min, block_max, _ = ld_path.stem.split("_")
     cur_chr = int(chr_info[3:])
     block_min = int(block_min)
     block_max = int(block_max)
     ld_matrix = np.load(ld_path)["arr_0"]
-    rsids = np.loadtxt(ld_path.parent/(ld_path.stem.rpartition("_")[0]+"_rsids.txt"), dtype=str)
+    rsids = np.loadtxt(ld_path.parent / (ld_path.stem.rpartition("_")[0] + "_rsids.txt"), dtype=str)
     if rsids.ndim == 0:
         rsids = rsids[np.newaxis]
     if rsids[0][:2] == "NO" or rsids[0][:2] == "WE":
         return []
-    trait_subset = trait_df[(trait_df["chr"] == cur_chr)&(trait_df["loc"]>block_min)&(trait_df["loc"]<block_max)]
-    trait_rsid = trait_subset['rsid'].to_numpy()
+    trait_subset = trait_df[
+        (trait_df["chr"] == cur_chr) & (trait_df["loc"] > block_min) & (trait_df["loc"] < block_max)
+    ]
+    trait_rsid = trait_subset["rsid"].to_numpy()
     rsid_set = set(rsids.tolist())
     trait_rsid_set = set(trait_rsid.tolist())
 
@@ -66,14 +69,17 @@ def clump_block(trait_df, ld_fpath, min_r2, min_height, window_size_kb):
     pos_matrix = np.minimum(afs * (1 - afs)[:, np.newaxis], (1 - afs) * afs[:, np.newaxis])
     neg_matrix[ld_red > 0] = pos_matrix[ld_red > 0]
     ld_proper = neg_matrix * ld_red
-    r2_matrix = ld_proper ** 2 / af_pq_matrix
-    test_idxs_set = clump_peaks(red_df["ash_p"].to_numpy(), red_df["loc"].to_numpy(), r2_matrix, min_r2, min_height, window_size_kb)
+    r2_matrix = ld_proper**2 / af_pq_matrix
+    test_idxs_set = clump_peaks(
+        red_df["ash_p"].to_numpy(), red_df["loc"].to_numpy(), r2_matrix, min_r2, min_height, window_size_kb
+    )
     return rsids_red[test_idxs_set].tolist()
+
 
 def clump_trait(trait_fpath, clump_dir, clump_suffix, all_ld_list, min_r2=0.5, min_height=1e-3, window_size_kb=250):
     trait_path = Path(trait_fpath)
     pheno_ID = trait_path.stem.rpartition("_")[0]
-    parquet_path = Path(clump_dir)/f"{pheno_ID}{clump_suffix}"
+    parquet_path = Path(clump_dir) / f"{pheno_ID}{clump_suffix}"
     if parquet_path.is_file():
         return 1
 
@@ -83,11 +89,10 @@ def clump_trait(trait_fpath, clump_dir, clump_suffix, all_ld_list, min_r2=0.5, m
         rsids.extend(clump_block(trait_df, ld_fpath, min_r2, min_height, window_size_kb))
 
     rsids = list(set(rsids))
-    trait_subset = trait_df[trait_df['rsid'].isin(rsids)]
+    trait_subset = trait_df[trait_df["rsid"].isin(rsids)]
 
-    #adna_mask = np.isin(adna_rsids, rsids)
-    #adna_subset = adna_data[adna_mask]
-
+    # adna_mask = np.isin(adna_rsids, rsids)
+    # adna_subset = adna_data[adna_mask]
 
     trait_subset.to_parquet(parquet_path)
     return 0
@@ -110,10 +115,19 @@ def main():
 
     all_ld_files = [f.strip() for f in all_ld_files]
     all_ld_files = [f for f in all_ld_files if ".gz" not in f]
-    all_ld_files = [smk["ld_dir"]+"/"+f.split("/")[1] for f in all_ld_files]
+    all_ld_files = [smk["ld_dir"] + "/" + f.split("/")[1] for f in all_ld_files]
     all_ld_files = [f.rpartition(".")[0] + "_subset.npz" for f in all_ld_files]
 
-    clump_trait(smk["pheno_file"], smk["clump_dir"], smk["clump_suffix"], all_ld_files, smk["min_r2"], smk["min_height"], smk["window_size_kb"])
+    clump_trait(
+        smk["pheno_file"],
+        smk["clump_dir"],
+        smk["clump_suffix"],
+        all_ld_files,
+        smk["min_r2"],
+        smk["min_height"],
+        smk["window_size_kb"],
+    )
+
 
 if __name__ == "__main__":
     main()

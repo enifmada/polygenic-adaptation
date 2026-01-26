@@ -11,6 +11,7 @@ def wget_command(pheno_str, output_dir, output_fname):
         sprun(["wget", pheno_str, "-O", pheno_file], check=False)
     return 1
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("-o", "--output_dir", help="output BASE directory")
@@ -32,6 +33,7 @@ def main():
 
     for f_i, pheno_str in enumerate(pheno_locs):
         wget_command(pheno_str, smk["output_dir"], phenos_simple[f_i])
+
 
 if __name__ == "__main__":
     main()

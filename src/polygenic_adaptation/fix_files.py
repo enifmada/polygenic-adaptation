@@ -21,9 +21,9 @@ for num_loci in [500, 1000, 2000, 4000, 8000]:
     base_dir = Path(f"../../../polyoutput/slim_testing/vgmatch{num_loci}/slims")
     for s in range(16):
         for omega in [0.1, 0.2, 0.4, 0.8, 1.6]:
-            gfile = base_dir/f"vgmatch{num_loci}_w{omega}_s{s}_allgenos.vcf"
-            pfile = base_dir/f"vgmatch{num_loci}_w{omega}_s{s}_phenotypes.txt"
-            sfile = base_dir/f"vgmatch{num_loci}_w{omega}_s{s}_slim.txt"
+            gfile = base_dir / f"vgmatch{num_loci}_w{omega}_s{s}_allgenos.vcf"
+            pfile = base_dir / f"vgmatch{num_loci}_w{omega}_s{s}_phenotypes.txt"
+            sfile = base_dir / f"vgmatch{num_loci}_w{omega}_s{s}_slim.txt"
 
             gdata = np.loadtxt(gfile)
             np.savez_compressed(gfile.with_suffix(".npz"), gdata)

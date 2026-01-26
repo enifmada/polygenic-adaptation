@@ -19,16 +19,16 @@ from cycler import cycler
 #     main()
 
 plt.rcParams.update(
-        {
-            "font.size": 10,
-            "text.usetex": False,
-            "font.family": "serif",
-            "font.serif": "cmr10",
-            "mathtext.fontset": "cm",
-            "axes.unicode_minus": False,
-            "axes.formatter.use_mathtext": True,
-        }
-    )
+    {
+        "font.size": 10,
+        "text.usetex": False,
+        "font.family": "serif",
+        "font.serif": "cmr10",
+        "mathtext.fontset": "cm",
+        "axes.unicode_minus": False,
+        "axes.formatter.use_mathtext": True,
+    }
+)
 prop_cycle = plt.rcParams["axes.prop_cycle"]
 colors = prop_cycle.by_key()["color"]
 
@@ -42,10 +42,10 @@ dz = 0.01
 omega = 0.4
 
 base_dir = Path(f"../../../polyoutput/slim_testing/{base_str}")
-slim_out = np.loadtxt(base_dir/f"slims/{base_str}_w{omega}_s{0}_slim.txt", skiprows=1).T
+slim_out = np.loadtxt(base_dir / f"slims/{base_str}_w{omega}_s{0}_slim.txt", skiprows=1).T
 slim_freqs = slim_out[3:, :]
 
-fig, axs = plt.subplots(1,1, figsize=(3.1, 1.5), layout="constrained")
+fig, axs = plt.subplots(1, 1, figsize=(3.1, 1.5), layout="constrained")
 # axs[1].invert_xaxis()
 # axs[1].plot(slim_freqs.T, alpha = 0.05, lw=0.2, color="k")
 # # random_idxs = np.random.default_rng(6).choice(np.arange(slim_freqs.shape[0]), size=10)
@@ -54,15 +54,15 @@ fig, axs = plt.subplots(1,1, figsize=(3.1, 1.5), layout="constrained")
 #
 # axs[1].set_xlabel("Generation")
 # axs[1].set_ylabel("Frequency")
-#axs[1].set_ylim([0,1])
-#axs[1].set_xlim([0, 250])
-#axs.set_xticks([-true_beta, 0, true_beta])
+# axs[1].set_ylim([0,1])
+# axs[1].set_xlim([0, 250])
+# axs.set_xticks([-true_beta, 0, true_beta])
 
-axs.plot(slim_out[1, :]/omega**2)
+axs.plot(slim_out[1, :] / omega**2)
 axs.set_ylabel("Trait value")
 axs.set_xlim([0, 40])
 axs.set_xlabel("Generation")
-#axs[0].set_ylim([0,2.2])
-#axs[0].text(-.24, .92, r"$\bf{B}$", fontsize=13, transform=axs[0].transAxes)
+# axs[0].set_ylim([0,2.2])
+# axs[0].text(-.24, .92, r"$\bf{B}$", fontsize=13, transform=axs[0].transAxes)
 
-fig.savefig(base_dir/f"{base_str}_prestraitplot_spooky.pdf", format="pdf", bbox_inches="tight")
+fig.savefig(base_dir / f"{base_str}_prestraitplot_spooky.pdf", format="pdf", bbox_inches="tight")

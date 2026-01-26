@@ -13,8 +13,8 @@ def main():
 
     smk = parser.parse_args()
 
-    s3 = boto3.resource('s3')
-    s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
+    s3 = boto3.resource("s3")
+    s3.meta.client.meta.events.register("choose-signer.s3.*", disable_signing)
 
     bucket = s3.Bucket("broad-alkesgroup-ukbb-ld")
 
@@ -22,11 +22,12 @@ def main():
         if "baseline" in str(item.key) or "readme" in str(item.key):
             continue
 
-        output_path = Path(smk.output_dir)/item.key
+        output_path = Path(smk.output_dir) / item.key
         if output_path.is_file():
             continue
         with Path(output_path).open("wb") as f:
             bucket.download_fileobj(item.key, f)
+
 
 if __name__ == "__main__":
     main()
