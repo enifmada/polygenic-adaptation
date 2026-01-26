@@ -9,15 +9,21 @@ import numpy as np
 from joblib import Parallel, delayed
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+import pickle
+
+import pandas as pd
+
+# from polygenic_adaptation.hmm_core import HMM
+from hmm_core import HMM
 from tqdm import tqdm
 
-from polygenic_adaptation.hmm_core import HMM
 
-
-def compute_ll_wrapper(hmm, s, data_matrix):
-    direc_res = hmm.compute_multiple_ll(s / 2, s, data_matrix)
-    stab_res = hmm.compute_multiple_ll(s, 0, data_matrix)
-    return direc_res, stab_res
+def compute_ll_wrapper(hmm, s, data_matrix, cond_endpt=False, **cond_kwargs):
+    direc_res, direc_res_uncon = hmm.compute_multiple_ll(s / 2, s, data_matrix, cond_endpt, **cond_kwargs)
+    stab_res, stab_res_uncon = hmm.compute_multiple_ll(s, 0, data_matrix, cond_endpt, **cond_kwargs)
+    if np.any(np.isinf(stab_res)):
+        pass
+    return direc_res, direc_res_uncon, stab_res, stab_res_uncon
 
 
 def main():
@@ -80,6 +86,7 @@ def main():
         action="store_true",
         help="if inputting a VCF, save a CSV to future reduce pre-processing time",
     )
+
     parser.add_argument(
         "--info_file",
         type=argparse.FileType("rb"),
@@ -115,6 +122,22 @@ def main():
         action="store_true",
         help="whether or not this script was run as part of a snakemake workflow. If so, do not save the params as a json because params.json already exists.",
     )
+
+    parser.add_argument(
+        "--subset_input",
+        nargs=2,
+        default=["", ""],
+        help="use this flag if you are subsetting the full adna file on the fly",
+    )
+    parser.add_argument(
+        "--condition_on_seg", action="store_true", help="condition the dataset on segregation at a future generation"
+    )
+    parser.add_argument(
+        "--end_gen", type=int, help="generation to segregate based on (to be used with --condition_on_seg flag)"
+    )
+    parser.add_argument(
+        "--end_ns", type=int, help="number of samples in final generation (to be used with --condition_on_seg flag)"
+    )
     args_dict = vars(parser.parse_args())
     actual_sid_dict = {}
 
@@ -126,6 +149,14 @@ def main():
             except ValueError:
                 actual_sid_dict[k] = v
     args_dict["sid_dict"] = actual_sid_dict
+
+    if args_dict["condition_on_seg"]:
+        assert "end_gen" in args_dict
+        assert "end_ns" in args_dict
+        args_dict["cond_kwargs"] = {"end_gen": args_dict["end_gen"], "end_ns": args_dict["end_ns"]}
+    else:
+        args_dict["cond_kwargs"] = {}
+
     hmm = HMM(
         args_dict["hidden_states"],
         args_dict["Ne"],
@@ -139,37 +170,68 @@ def main():
         # equivalent of pass but the thing exists
         data_matrix = np.zeros((1,))
 
+    if args_dict["subset_input"][0] != "" and data_matrix.shape[0] > 1:
+        with Path(args_dict["subset_input"][0]).open("rb") as f:
+            adna_snp_info = pickle.load(f)
+
+        clumped_info = pd.read_parquet(args_dict["subset_input"][1])
+
+        adna_mask = np.isin(adna_snp_info["all_rsid"], clumped_info["rsid"])
+        data_matrix = data_matrix[adna_mask]
+
     MIN_GRID_VAL = 5e-5
     pos_grid = np.geomspace(MIN_GRID_VAL, args_dict["grid_s_max"], args_dict["num_half_grid_points"])
     full_grid = np.concatenate((-pos_grid[::-1], [0], pos_grid))
 
     np.linspace(-args_dict["grid_s_max"], args_dict["grid_s_max"], 1001)
     direc_unif_lls = np.zeros((data_matrix.shape[0], full_grid.shape[0]))
+    direc_unif_uncon_lls = np.zeros((data_matrix.shape[0], full_grid.shape[0]))
     stab_unif_lls = np.zeros((data_matrix.shape[0], full_grid.shape[0]))
+    stab_unif_uncon_lls = np.zeros((data_matrix.shape[0], full_grid.shape[0]))
 
     if args_dict["num_cores"] > 1:
         parallel_loop = tqdm(full_grid) if args_dict["progressbar"] else full_grid
         with Parallel(n_jobs=args_dict["num_cores"]) as parallel:
-            res = parallel(delayed(compute_ll_wrapper)(hmm, p_s, data_matrix) for p_s in parallel_loop)
+            res = parallel(
+                delayed(compute_ll_wrapper)(
+                    hmm, p_s, data_matrix, cond_endpt=args_dict["condition_on_seg"], **args_dict["cond_kwargs"]
+                )
+                for p_s in parallel_loop
+            )
         direc_lls = [rp[0] for rp in res]
-        stab_lls = [rp[1] for rp in res]
+        direc_lls_uncon = [rp[1] for rp in res]
+        stab_lls = [rp[2] for rp in res]
+        stab_lls_uncon = [rp[3] for rp in res]
         direc_unif_lls[:, :] = np.array(direc_lls).T.squeeze()
+        direc_unif_uncon_lls[:, :] = np.array(direc_lls_uncon).T.squeeze()
         stab_unif_lls[:, :] = np.array(stab_lls).T.squeeze()
+        stab_unif_uncon_lls[:, :] = np.array(stab_lls_uncon).T.squeeze()
     else:
         for s_i, s in enumerate(tqdm(full_grid)) if args_dict["progressbar"] else enumerate(full_grid):
-            direc_unif_lls[:, s_i] = hmm.compute_multiple_ll(s1=s / 2, s2=s, data_matrix=data_matrix)
-            stab_unif_lls[:, s_i] = hmm.compute_multiple_ll(s1=s, s2=0, data_matrix=data_matrix)
+            # direc_unif_lls[:, s_i] = hmm.compute_multiple_ll(s1=s / 2, s2=s, data_matrix=data_matrix, cond_endpt=args_dict["condition_on_seg"], **args_dict["cond_kwargs"])
+            # stab_unif_lls[:, s_i] = hmm.compute_multiple_ll(s1=s, s2=0, data_matrix=data_matrix, cond_endpt=args_dict["condition_on_seg"], **args_dict["cond_kwargs"])
+            direc_unif_lls[:, s_i], direc_unif_uncon_lls[:, s_i], stab_unif_lls[:, s_i], stab_unif_uncon_lls[:, s_i] = (
+                compute_ll_wrapper(hmm, s, data_matrix, args_dict["condition_on_seg"], **args_dict["cond_kwargs"])
+            )
 
     combined_grid = np.zeros((2 * direc_unif_lls.shape[0] + 1, direc_unif_lls.shape[1]))
     combined_grid[0, :] = full_grid
-    for row in range(direc_unif_lls.shape[0]):
-        combined_grid[2 * row + 1, :] = direc_unif_lls[row, :]
-        combined_grid[2 * row + 2, :] = stab_unif_lls[row, :]
+    combined_grid[1::2, :] = direc_unif_lls
+    combined_grid[2::2, :] = stab_unif_lls
     np.savetxt(
         args_dict["output_path"],
         combined_grid,
         header="s_grid followed by direc_unif_ll+stab_unif_ll for each rep",
     )
+    if args_dict["condition_on_seg"]:
+        combined_uncon_grid = np.copy(combined_grid)
+        combined_uncon_grid[1::2, :] = direc_unif_uncon_lls
+        combined_uncon_grid[2::2, :] = stab_unif_uncon_lls
+        np.savetxt(
+            f"{Path(args_dict['output_path']).with_suffix('')}_uncon.csv",
+            combined_uncon_grid,
+            header="s_grid followed by UNCON direc_unif_ll+stab_unif_ll for each rep",
+        )
     if "snakemake" not in args_dict or not args_dict["snakemake"]:
         json_fname = f"{Path(args_dict['output_path']).with_suffix('')}_params.json"
         with Path(json_fname).open("w", encoding="locale") as file:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import allel
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import linregress
 
@@ -58,8 +59,18 @@ def main():
             lr_result = linregress(genotype_by_site[site], phenos)
             betas[site] = lr_result.slope
             stderrs[site] = lr_result.stderr
-    full_res = np.stack((betas, stderrs)).T
-    np.savetxt(smk.output, full_res, header="1 row = 1 site, cols = (beta, stderr)")
+            x_space = np.linspace(-0.1, 2.1, 1000)
+            fig, axs = plt.subplots(1,1, figsize=(3.1, 2.1), layout="constrained")
+            axs.plot(genotype_by_site[site]+np.random.default_rng(5).normal(0, 0.01, size=phenos.shape), phenos, marker=".", markersize=3, lw=0)
+            axs.plot(x_space, x_space*lr_result.slope + lr_result.intercept, label=rf"$P = {lr_result.slope:.4f}G + {lr_result.intercept:.4f}$")
+            axs.set_xticks([0,1,2])
+            axs.set_xticklabels(["-1\nAA", "0\nAB", "1\nBB"])
+            axs.set_xlabel("Genotype")
+            axs.set_ylabel("Phenotype")
+            axs.legend()
+            #axs.fill_between(x_space, x_space*(lr_result.slope-1.96*lr_result.stderr) + lr_result.intercept, x_space*(lr_result.slope+1.96*lr_result.stderr) + lr_result.intercept, alpha=0.5)
+            fig.savefig(smk.output, bbox_inches="tight")
+            break
 
 
 if __name__ == "__main__":

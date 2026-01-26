@@ -92,7 +92,10 @@ class HMM:
         int_matrix /= np.sum(int_matrix)
         return int_matrix
 
-    def compute_multiple_ll(self, s1, s2, data_matrix):
+    def compute_multiple_ll(self, s1, s2, data_matrix, cond_endpt=False, **cond_kwargs):
+        if cond_endpt:
+            assert "end_gen" in cond_kwargs
+            assert "end_ns" in cond_kwargs
         sample_locs_array = data_matrix[:, ::3]
         nts_array = data_matrix[:, 1::3]
         obs_counts_array = data_matrix[:, 2::3]
@@ -153,7 +156,45 @@ class HMM:
             ll_cs[t, :] = 1.0 / np.sum(ll_alphas_tilde, axis=0)
             ll_alphas_hat = np.einsum("n, in -> in", ll_cs[t, :], ll_alphas_tilde)
             assert np.all(np.isclose(np.sum(ll_alphas_hat, axis=0), 1.0))
-        return -np.sum(np.log(ll_cs), axis=0)
+        if cond_endpt:
+            end_diff = cond_kwargs["end_gen"] - ll_sample_locs[-1]
+            ll_a_pow_end = np.linalg.matrix_power(ll_a, end_diff)
+            e_probs_end = self.gs ** cond_kwargs["end_ns"]
+            emissions_end1 = np.tile(e_probs_end, (data_matrix.shape[0], 1))
+            emissions_end2 = np.tile(e_probs_end[::-1], (data_matrix.shape[0], 1))
+
+            # yeah soooo things are just way too close to 1, so then you subtract from 1 and everything goes to shit
+            # consider figuring out how to take like (ll_alphas_hat-1) and have the math work out. or just go to 0.25.
+            ll_alphas_tilde_end1 = np.einsum("in, ij, nj -> jn", ll_alphas_hat, ll_a_pow_end, emissions_end1)
+            # cs_end1 = 1.0/np.sum(ll_alphas_tilde_end1, axis=0)
+            ll_alphas_tilde_end2 = np.einsum("in, ij, nj -> jn", ll_alphas_hat, ll_a_pow_end, emissions_end2)
+            # cs_end2 = 1.0/np.sum(ll_alphas_tilde_end2, axis=0)
+            # still do this as log to prevent underflow?
+            ll_rest = -np.sum(np.log(ll_cs), axis=0)
+            # print(np.sum(ll_alphas_tilde_end1))
+            # print(np.sum(ll_alphas_tilde_end2))
+            ll_num = ll_rest + np.log(1 - np.sum(ll_alphas_tilde_end1, axis=0) - np.sum(ll_alphas_tilde_end2, axis=0))
+
+            # only need to compute this once b/c same for all data
+            ll_alphas_tilde_nodata = np.einsum("i, ni->in", self.init_state, np.ones((1, self.init_state.shape[0])))
+            ll_cs_temp = 1.0 / np.sum(ll_alphas_tilde_nodata, axis=0)
+            ll_alphas_hat_nodata = np.einsum("n, in -> in", ll_cs_temp, ll_alphas_tilde_nodata)
+            ll_a_pow_end_nodata = np.linalg.matrix_power(ll_a, cond_kwargs["end_gen"])
+            ll_alphas_tilde_end1_nodata = np.einsum(
+                "in, ij, nj -> jn", ll_alphas_hat_nodata, ll_a_pow_end_nodata, emissions_end1[:1, :]
+            )
+            # cs_end1_nodata = 1.0/np.sum(ll_alphas_tilde_end1_nodata, axis=0)
+            ll_alphas_tilde_end2_nodata = np.einsum(
+                "in, ij, nj -> jn", ll_alphas_hat_nodata, ll_a_pow_end_nodata, emissions_end2[:1, :]
+            )
+            # cs_end2_nodata = 1.0/np.sum(ll_alphas_tilde_end2_nodata, axis=0)
+            ll_denom = np.log(
+                1 - np.sum(ll_alphas_tilde_end1_nodata, axis=0) - np.sum(ll_alphas_tilde_end2_nodata, axis=0)
+            )
+            # print(ll_denom[0])
+            return (ll_num - ll_denom[0], ll_rest)
+
+        return (-np.sum(np.log(ll_cs), axis=0), -np.inf)
 
     def beta_opt_func(self, beta_params, gammas):
         beta_density = beta.logpdf(self.gs[1:-1], beta_params[0], beta_params[1])

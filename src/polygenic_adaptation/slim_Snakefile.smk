@@ -135,7 +135,7 @@ rule sample_data:
         subdir_str_dict["data"]+config["file_prefix"]+"b{b}_w{w}_s{s}_data.csv",
         subdir_str_dict["trajs"]+config['file_prefix']+"b{b}_w{w}_s{s}_trajs.pdf"
     shell:
-        "python sample_slim.py -i {input} -o {output}"#output
+        "python sample_sim.py -i {input} -o {output}"#output
 
 rule run_slims:
     input:

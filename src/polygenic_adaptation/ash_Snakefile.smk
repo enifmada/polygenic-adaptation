@@ -1,7 +1,12 @@
 from pathlib import Path
 
-TRAITS, = glob_wildcards("../../../../../data/UKBB_GWAS/{trait}.sumstats.gz")
 base_dir = Path("../../../polyoutput/ukbb_shrunk")
+#for full analysis
+#TRAITS, = glob_wildcards("../../../../../data/UKBB_GWAS/{trait}.sumstats.gz")
+
+#for partial analysis
+TRAITS, = glob_wildcards(base_dir/"pruned_data/{trait, [^\.]+}_ash_pruned_sumstats.csv")
+print(TRAITS)
 adna_snps_info_file = base_dir/"GB_v54.1_capture_only_agg_data.pkl"
 ld_blocks_file = "../../../../../data/LDetect_beds/EUR/fourier_ls-all.bed"
 adna_full_csv_file = base_dir/"GB_v54.1_capture_only_all_chroms.csv"
@@ -9,9 +14,19 @@ adna_full_csv_file = base_dir/"GB_v54.1_capture_only_all_chroms.csv"
 if "hmm_Ne" not in config:
     config["hmm_Ne"] = config["Ne"]
 
+if "mode" not in config:
+    config["mode"] = "LDetect"
+
+
+if config["mode"] == "greedy":
+    subset_prune_str = f"greedy --height {config['height']} --width {config['width']}"
+else:
+    subset_prune_str = f"{config['mode']}"
+
 rule all:
     input:
-        expand(base_dir/"ash_results/{trait}_ash.csv.gz", trait=TRAITS), expand(base_dir/"ash_results/{trait}_ash_g.csv", trait=TRAITS), expand(base_dir/"ash_results/{trait}_density.pdf", trait=TRAITS), base_dir/f"output/all_gvars{config['suffix']}.txt", base_dir/f"output/all_dir_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_ests{config['suffix']}.pdf"
+        #expand(base_dir/"ash_results/{trait}_ash.csv.gz", trait=TRAITS), expand(base_dir/"ash_results/{trait}_ash_g.csv", trait=TRAITS), expand(base_dir/"ash_results/{trait}_density.pdf", trait=TRAITS), base_dir/f"output/all_gvars{config['suffix']}.txt",
+        base_dir/f"output/all_dir_Sdz_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_S_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_w_ests{config['suffix']}.pdf"
 
 rule shrink_sumstats:
     input:
@@ -31,7 +46,7 @@ rule subset_and_prune_snps:
     resources:
         mem_mb=20000
     shell:
-        f"python subset_and_prune.py greedy --height {config['height']} --width {config['width']} -i {{input}} -o {{output}}"
+        f"python subset_and_prune.py {subset_prune_str} -i {{input}} -o {{output}}"
 
 rule run_grid:
     input:
@@ -50,9 +65,9 @@ rule analyze_grids:
     input:
         expand(base_dir/f"hmm_grids/{{trait}}_grid{config['suffix']}.csv", trait=TRAITS), expand(base_dir/f"pruned_data/{{trait}}_ash_pruned_sumstats{config['suffix']}.csv", trait=TRAITS)
     output:
-        base_dir/f"output/all_dir_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_ests{config['suffix']}.pdf"
-    resources:
-        mem_mb=70000
+        base_dir/f"output/all_dir_Sdz_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_S_ests{config['suffix']}.pdf", base_dir/f"output/all_stab_w_ests{config['suffix']}.pdf"
+    #resources:
+        #mem_mb=70000
     shell:
         "python analyze_real_data.py -i {input} -o {output}"
 

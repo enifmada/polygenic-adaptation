@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import time
 from argparse import ArgumentParser
 
@@ -17,12 +18,14 @@ def main():
     parser.add_argument("-i", "--input", nargs="*", help="input")
     parser.add_argument("-o", "--output", nargs="*", help="output")
     smk = parser.parse_args()
-    data_array = pd.read_csv(smk.input[0], sep="\t")
+    with gzip.open(smk.input[0], "r") as f:
+        data_array = pd.read_csv(f, sep="\t")
+    # data_array = pd.read_csv(smk.input[0], sep="\t")
     pandas2ri.activate()
     ashr = importr("ashr")
     r_df = pandas2ri.py2rpy(data_array)
     time.time()
-    ashres = ashr.ash(r_df.rx2("Beta"), r_df.rx2("se"), mixcompdist="normal")
+    ashres = ashr.ash(r_df.rx2("beta"), r_df.rx2("se"), mixcompdist="normal")
     ash_gs = ashres.rx2("fitted_g")
     ashres_res = ashres.rx2("result")
     ash_cols_needed = ashres_res.rx(True, r.c("PosteriorMean", "PosteriorSD", "qvalue"))
@@ -36,7 +39,8 @@ def main():
     p_vals = ashres_np[:, -1] * ranks / m_0
     ashres_pd = pd.DataFrame(ashres_np[:, :-1], columns=["ash_beta", "ash_se"])
     ashres_pd["ash_p"] = p_vals
-    ashres_pd.to_csv(smk.output[0], compression="gzip", index=False)
+    new_df = pd.concat([data_array, ashres_pd], axis=1)
+    new_df.to_parquet(smk.output[0])
     # r["saveRDS"](ashres, "ash_output_test.rds")
     ashg_pi = ash_gs.rx2("pi")
     ashg_sd = ash_gs.rx2("sd")

@@ -1,144 +1,355 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
+from copy import deepcopy
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy.odr
+from joblib import Parallel, delayed
 from scipy.interpolate import CubicSpline
 from tqdm import tqdm
+
+# TODO:
+# estimate omegas from S (how to deal with V_E? what is V_G? start with V_G, I guess?)
+# - phenotypic variance is 1 so we can use that in the equation right??
+# plot omegas, see what range we get
+
+
+def compute_one_jackknife(jkb_i, locs_copy, idxs_perm, idxs_per_block, f, betas, s_ests, beta_errs, s_errs, beta_exp):
+    locs_copy[idxs_perm[jkb_i * idxs_per_block : (jkb_i + 1) * idxs_per_block]] = False
+    temp_odr_model = scipy.odr.Model(f, extra_args=(beta_exp,))
+    temp_odr_data = scipy.odr.RealData(
+        betas[locs_copy], s_ests[locs_copy], sx=beta_errs[locs_copy], sy=s_errs[locs_copy]
+    )
+    temp_odr_odr = scipy.odr.ODR(temp_odr_data, temp_odr_model, beta0=[1e-6], maxit=100)
+    temp_odr_output = temp_odr_odr.run()
+    odr_jk_ests = temp_odr_output.beta[0]
+
+    wls_weights = np.diag(1 / s_errs[locs_copy] ** 2)
+
+    actual_betas = (betas[locs_copy] ** beta_exp).reshape((betas[locs_copy].shape[0], 1))
+    wls_jk_ests = ((actual_betas.T @ wls_weights @ s_ests[locs_copy]) / (actual_betas.T @ wls_weights @ actual_betas))[
+        0
+    ][0]
+
+    return odr_jk_ests, wls_jk_ests
 
 
 def main():
     parser = ArgumentParser()
+    parser.add_argument("--max_jk_blocks", type=int, default=50, help="maximum number of jackknife blocks to compute")
     parser.add_argument("-i", "--input", nargs="*", help="input")
-    parser.add_argument("-o", "--output", nargs="*", help="output")
+    parser.add_argument("--output_parquet", help="output parquet file to store results")
+    parser.add_argument("-nc", "--num_cores", type=int, help="number of cores (to speed up jackknife)")
+    parser.add_argument("--pheno_descr_file", help="file containing map between phenotype code and description")
+    parser.add_argument("--trait_plots_dir", help="directory to save trait regression plots (none provided = no plots)")
 
     smk = parser.parse_args()
 
+    rng = np.random.default_rng(6)
+
     # MIN_BETA_VALUE = 1e-5
-    direc_unif_estimates = []
-    stab_unif_estimates = []
+    direc_S_estimates_odr = []
+    direc_S_estimates_wls = []
+    direc_S_estimates = [direc_S_estimates_odr, direc_S_estimates_wls]
+    direc_S_errs_jko = []
+    direc_S_errs_jkw = []
+    direc_S_errs_jk = [direc_S_errs_jko, direc_S_errs_jkw]
+    direc_S_errs_odr = []
+    direc_S_errs_wls = []
+    direc_S_errs_emp = [direc_S_errs_odr, direc_S_errs_wls]
+
+    stab_S_estimates_odr = []
+    stab_S_estimates_wls = []
+    stab_S_estimates = [stab_S_estimates_odr, stab_S_estimates_wls]
+    stab_S_errs_jko = []
+    stab_S_errs_jkw = []
+    stab_S_errs_jk = [stab_S_errs_jko, stab_S_errs_jkw]
+    stab_S_errs_odr = []
+    stab_S_errs_wls = []
+    stab_S_errs_emp = [stab_S_errs_odr, stab_S_errs_wls]
+
+    S_ests_list = [direc_S_estimates, stab_S_estimates]
+    S_errs_list_jk = [direc_S_errs_jk, stab_S_errs_jk]
+    S_errs_list_emp = [direc_S_errs_emp, stab_S_errs_emp]
     trait_names = []
+    trait_num_snps = []
+    if smk.pheno_descr_file:
+        pheno_descr_pd = pd.read_parquet(smk.pheno_descr_file)
+        tick_names = []
     num_inputs = len(smk.input)
     for grid_i in tqdm(range(num_inputs // 2)):
-        trait_name = Path(smk.input[grid_i]).name.rpartition("_")[0].rpartition("_")[0]
+        undersplit = Path(smk.input[grid_i]).name.split("_")
+        trait_name = undersplit[0] + "_" + undersplit[1]  # not sure this works in all cases...
         assert trait_name in Path(smk.input[grid_i + num_inputs // 2]).name
         trait_names.append(trait_name)
+        if smk.pheno_descr_file:
+            tick_names.append(
+                pheno_descr_pd.loc[pheno_descr_pd["Phenotype Code"] == trait_name]["Phenotype Description"].to_numpy()[
+                    0
+                ]
+            )
         grid = np.loadtxt(smk.input[grid_i])
-        sumstats = pd.read_csv(smk.input[grid_i + num_inputs // 2])
+        sumstats_file = Path(smk.input[grid_i + num_inputs // 2])
+        if sumstats_file.suffix == ".csv":
+            sumstats = pd.read_csv(sumstats_file)
+        elif sumstats_file.suffix == ".parquet":
+            sumstats = pd.read_parquet(sumstats_file)
+        else:
+            msg = "Invalid sumstats file type!"
+            raise NotImplementedError(msg)
+        trait_num_snps.append(sumstats.shape[0])
         betas = sumstats["ash_beta"].to_numpy()
+        beta_errs = sumstats["ash_se"].to_numpy()
         raw_grid = grid[0, :]
         dll_unif_vals = grid[1::2, :]
         sll_unif_vals = grid[2::2, :]
+        unif_vals = [dll_unif_vals, sll_unif_vals]
 
-        max_signed_beta = np.max(np.abs(betas))
-        expanded_direc_x = np.linspace(
-            raw_grid[0] / (2 * max_signed_beta),
-            raw_grid[-1] / (2 * max_signed_beta),
-            10000,
-        )
-        direc_s2l_raw_1 = raw_grid[1] / (2 * max_signed_beta)
-        direc_s2l_raw_2 = raw_grid[-2] / (2 * max_signed_beta)
-        expanded_stab_x = np.linspace(
-            raw_grid[0] / (max_signed_beta**2 / 2),
-            raw_grid[-1] / (max_signed_beta**2 / 2),
-            10000,
-        )
-        stab_s2l_raw_1 = raw_grid[1] / (max_signed_beta**2 / 2)
-        stab_s2l_raw_2 = raw_grid[-2] / (max_signed_beta**2 / 2)
-        summed_unif_dlls = np.zeros_like(expanded_direc_x)
-        summed_unif_slls = np.zeros_like(expanded_stab_x)
-        all_dll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
-        all_sll_unif_ests = np.zeros((dll_unif_vals.shape[0], summed_unif_dlls.shape[0]))
-        for loc in range(dll_unif_vals.shape[0]):
-            # *2 b/c conversion from s2 = s to s1 = s
-            sdz_est_grid = raw_grid / (2 * betas[loc])
+        beta_exponents = [1, 2]
+        scaling_factors = [-2, 0.5]
+        sel_names = ["directional", "stabilizing"]
 
-            # /2 b/c I think that's the right coefficient in the actual equations?
-            s_est_grid = raw_grid / (betas[loc] ** 2 / 2)
-            sll_unif_spline = CubicSpline(s_est_grid, sll_unif_vals[loc, :])
-            if betas[loc] >= 0:
-                dll_unif_spline = CubicSpline(sdz_est_grid, dll_unif_vals[loc, :])
+        expanded_x = np.linspace(raw_grid[0], raw_grid[-1], 10000)
+
+        for sel_type, s_vals, beta_exp, scaling_factor, S_est_list, S_err_list_jk, S_err_list_emp in zip(
+            sel_names,
+            unif_vals,
+            beta_exponents,
+            scaling_factors,
+            S_ests_list,
+            S_errs_list_jk,
+            S_errs_list_emp,
+            strict=False,
+        ):
+            s_ests = np.zeros(s_vals.shape[0])
+            s_errs = np.zeros_like(s_ests)
+
+            for loc in range(s_vals.shape[0]):
+                s_temp_spline = CubicSpline(raw_grid, s_vals[loc, :])
+
+                s_spline_curv = s_temp_spline.derivative(2)
+                s_interp = s_temp_spline(expanded_x)
+                max_loc = np.argmax(s_interp)
+                s_est = expanded_x[max_loc]
+                s_ests[loc] = s_est
+                s_errs[loc] = 1 / np.sqrt(-s_spline_curv(s_est))
+            usable_s_locs = (s_ests >= raw_grid[1]) & (s_ests <= raw_grid[-2])
+            usable_b_locs = beta_errs != 0
+            usable_locs = usable_s_locs & usable_b_locs
+            usable_locs_idxs = np.where(usable_locs)[0]
+
+            # I hate ODR
+            def f(B, x, beta_expt):
+                return B[0] * (x**beta_expt)
+
+            odr_model = scipy.odr.Model(f, extra_args=(beta_exp,))
+            beta0test = [1e-1]
+            x0 = np.array([1, 2, 3])
+            beta_exptest = (2,)
+            test_args = (beta0test, x0)
+            test_args + beta_exptest
+            odr_data = scipy.odr.RealData(
+                betas[usable_locs], s_ests[usable_locs], sx=beta_errs[usable_locs], sy=s_errs[usable_locs]
+            )
+            odr_odr = scipy.odr.ODR(odr_data, odr_model, beta0=[1e-6], maxit=200)
+            odr_output = odr_odr.run()
+            # who knows lol
+            m_odr = odr_output.beta[0]
+
+            odr_err = odr_output.sd_beta[0]
+
+            wls_weights = np.diag(1 / s_errs[usable_locs] ** 2)
+
+            actual_betas = (betas[usable_locs] ** beta_exp).reshape((betas[usable_locs].shape[0], 1))
+            m_wls = (
+                (actual_betas.T @ wls_weights @ s_ests[usable_locs]) / (actual_betas.T @ wls_weights @ actual_betas)
+            )[0][0]
+
+            rss = np.sum(
+                (1 / s_errs[usable_locs] * (s_ests[usable_locs] - m_wls * betas[usable_locs] ** beta_exp)) ** 2
+            )
+            cov_inv = actual_betas.T @ wls_weights @ actual_betas
+            se_wls = rss / (actual_betas.shape[0] - 1)
+
+            wls_err = np.sqrt(se_wls / cov_inv[0, 0])
+
+            if usable_locs_idxs.shape[0] <= smk.max_jk_blocks:
+                odr_jk_ests_array = np.zeros_like(usable_locs_idxs, dtype=float)
+                wls_jk_ests_array = np.zeros_like(usable_locs_idxs, dtype=float)
+
+                for jkl_i, jk_loc in enumerate(usable_locs_idxs):
+                    if jkl_i > 0:
+                        assert usable_locs[usable_locs_idxs[jkl_i - 1]]
+                    usable_locs[jk_loc] = False
+                    temp_odr_model = scipy.odr.Model(f, extra_args=(beta_exp,))
+                    temp_odr_data = scipy.odr.RealData(
+                        betas[usable_locs], s_ests[usable_locs], sx=beta_errs[usable_locs], sy=s_errs[usable_locs]
+                    )
+                    temp_odr_odr = scipy.odr.ODR(temp_odr_data, temp_odr_model, beta0=[1e-6], maxit=100)
+                    temp_odr_output = temp_odr_odr.run()
+                    odr_jk_ests_array[jkl_i] = temp_odr_output.beta[0]
+
+                    wls_weights = np.diag(1 / s_errs[usable_locs] ** 2)
+
+                    actual_betas = (betas[usable_locs] ** beta_exp).reshape((betas[usable_locs].shape[0], 1))
+                    wls_jk_ests_array[jkl_i] = (
+                        (actual_betas.T @ wls_weights @ s_ests[usable_locs])
+                        / (actual_betas.T @ wls_weights @ actual_betas)
+                    )[0][0]
+
+                    usable_locs[jk_loc] = True
+
             else:
-                dll_unif_spline = CubicSpline(sdz_est_grid[::-1], dll_unif_vals[loc, ::-1])
+                idxs_per_block = usable_locs_idxs.shape[0] // smk.max_jk_blocks + 1
 
-            dll_unif_ests = dll_unif_spline(expanded_direc_x)
-            all_dll_unif_ests[loc, :] = dll_unif_ests
-            summed_unif_dlls += dll_unif_ests
+                idxs_perm = np.copy(usable_locs_idxs)
+                rng.shuffle(idxs_perm)
+                if smk.num_cores > 1:
+                    with Parallel(n_jobs=smk.num_cores) as parallel:
+                        res = parallel(
+                            delayed(compute_one_jackknife)(
+                                jkb_i,
+                                np.copy(usable_locs),
+                                idxs_perm,
+                                idxs_per_block,
+                                f,
+                                betas,
+                                s_ests,
+                                beta_errs,
+                                s_errs,
+                                beta_exp,
+                            )
+                            for jkb_i in tqdm(range(usable_locs_idxs.shape[0] // idxs_per_block + 1))
+                        )
+                    odr_ests = [rp[0] for rp in res]
+                    jk_ests = [rp[1] for rp in res]
+                    odr_jk_ests_array = np.array(odr_ests, dtype=float).flatten()
+                    wls_jk_ests_array = np.array(jk_ests, dtype=float).flatten()
+                else:
+                    odr_jk_ests_array = np.zeros(usable_locs_idxs.shape[0] // idxs_per_block + 1, dtype=float)
+                    wls_jk_ests_array = np.zeros(usable_locs_idxs.shape[0] // idxs_per_block + 1, dtype=float)
+                    for jkb_i in range(odr_jk_ests_array.shape[0]):
+                        usable_locs[idxs_perm[jkb_i * idxs_per_block : (jkb_i + 1) * idxs_per_block]] = False
+                        temp_odr_model = scipy.odr.Model(f, extra_args=(beta_exp,))
+                        temp_odr_data = scipy.odr.RealData(
+                            betas[usable_locs], s_ests[usable_locs], sx=beta_errs[usable_locs], sy=s_errs[usable_locs]
+                        )
+                        temp_odr_odr = scipy.odr.ODR(temp_odr_data, temp_odr_model, beta0=[1e-6], maxit=100)
+                        temp_odr_output = temp_odr_odr.run()
+                        odr_jk_ests_array[jkb_i] = temp_odr_output.beta[0]
 
-            sll_unif_ests = sll_unif_spline(expanded_stab_x)
-            all_sll_unif_ests[loc, :] = sll_unif_ests
-            summed_unif_slls += sll_unif_ests
+                        wls_weights = np.diag(1 / s_errs[usable_locs] ** 2)
 
-        fig, axs = plt.subplots(1, 2, figsize=(10, 5), layout="constrained")
-        for loc in range(dll_unif_vals.shape[0]):
-            axs[0].plot(expanded_direc_x, all_dll_unif_ests[loc, :])
-            axs[1].plot(expanded_stab_x, all_sll_unif_ests[loc, :])
-        axs[0].plot(
-            expanded_direc_x,
-            summed_unif_dlls / all_dll_unif_ests.shape[0],
-            color="k",
-            lw=2,
-        )
-        axs[1].plot(
-            expanded_stab_x,
-            summed_unif_slls / all_dll_unif_ests.shape[0],
-            color="k",
-            lw=2,
-        )
-        axs[0].axvline(direc_s2l_raw_1, color="k", ls="--")
-        axs[0].axvline(direc_s2l_raw_2, color="k", ls="--")
-        axs[1].axvline(stab_s2l_raw_1, color="k", ls="--")
-        axs[1].axvline(stab_s2l_raw_2, color="k", ls="--")
-        axs[0].set_title("Unif Direc")
-        axs[1].set_title("Unif Stab")
-        fig.suptitle(f"{grid_i}")
-        fig.savefig(
-            Path(smk.output[1]).parent / f"{Path(smk.input[grid_i]).stem}_all_pchip_ests.pdf",
-            format="pdf",
-            bbox_inches="tight",
-        )
-        plt.close(fig)
-        np.max(summed_unif_dlls)
-        dll_unif_argmax = expanded_direc_x[np.argmax(summed_unif_dlls)]
+                        actual_betas = (betas[usable_locs] ** beta_exp).reshape((betas[usable_locs].shape[0], 1))
+                        wls_jk_ests_array[jkb_i] = (
+                            (actual_betas.T @ wls_weights @ s_ests[usable_locs])
+                            / (actual_betas.T @ wls_weights @ actual_betas)
+                        )[0][0]
+                        usable_locs[idxs_perm[jkb_i * idxs_per_block : (jkb_i + 1) * idxs_per_block]] = True
+            odr_jk_err = np.sqrt((odr_jk_ests_array.shape[0] - 1) * np.var(odr_jk_ests_array))
+            wls_jk_err = np.sqrt((wls_jk_ests_array.shape[0] - 1) * np.var(wls_jk_ests_array))
 
-        direc_unif_estimates.append(dll_unif_argmax)
+            actual_S_odr = -m_odr / scaling_factor
+            actual_S_wls = -m_wls / scaling_factor
+            actual_err_odr = abs(odr_err / scaling_factor)
+            actual_err_wls = abs(wls_err / scaling_factor)
+            actual_err_jko = abs(odr_jk_err / scaling_factor)
+            actual_err_jkw = abs(wls_jk_err / scaling_factor)
 
-        np.max(summed_unif_slls)
-        sll_unif_argmax = expanded_stab_x[np.argmax(summed_unif_slls)]
+            S_est_list[0].append(actual_S_odr)
+            S_est_list[1].append(actual_S_wls)
+            S_err_list_jk[0].append(actual_err_jko)
+            S_err_list_jk[1].append(actual_err_jkw)
+            S_err_list_emp[0].append(actual_err_odr)
+            S_err_list_emp[1].append(actual_err_wls)
 
-        stab_unif_estimates.append(sll_unif_argmax)
+            if smk.trait_plots_dir:
+                x_space = np.linspace(
+                    0.95 * np.min(betas[usable_locs] ** beta_exp), 1.05 * np.max(betas[usable_locs] ** beta_exp), 500
+                )
+
+                fig, axs = plt.subplots(1, 1, figsize=(5, 5), layout="constrained")
+                scatterplot = axs.scatter(
+                    betas[usable_locs] ** beta_exp,
+                    s_ests[usable_locs],
+                    s=s_errs[usable_locs] / np.min(s_errs[usable_locs]),
+                    c=beta_errs[usable_locs],
+                )
+                fig.colorbar(scatterplot, ax=axs)
+                axs.plot(
+                    x_space,
+                    m_odr * x_space,
+                    label=rf"$s_\ell = {m_odr:.4f}\beta_\ell{'^' + str(beta_exp) if beta_exp == 2 else ''}$",
+                )
+                axs.plot(
+                    x_space,
+                    m_wls * x_space,
+                    label=rf"$s_\ell = {m_wls:.4f}\beta_\ell{'^' + str(beta_exp) if beta_exp == 2 else ''}$",
+                )
+                axs.fill_between(
+                    x_space,
+                    m_odr * x_space - 1.96 * odr_err,
+                    m_odr * x_space + 1.96 * odr_err,
+                    alpha=0.5,
+                    label="ODR err",
+                )
+                axs.fill_between(
+                    x_space,
+                    m_wls * x_space - 1.96 * wls_err,
+                    m_wls * x_space + 1.96 * wls_err,
+                    alpha=0.5,
+                    label="WLS err",
+                )
+                # axs.fill_between(x_space, m_odr * x_space - 1.96 * odr_jk_err, m_odr * x_space + 1.96 * odr_jk_err, alpha = .5, label="JK err")
+                axs.set_title(f"min - max s err: {np.min(s_errs[usable_locs]):.4f} - {np.max(s_errs[usable_locs]):.4f}")
+                axs.legend()
+                fig.savefig(
+                    Path(smk.trait_plots_dir) / f"{Path(smk.input[grid_i]).stem}_{sel_type}_reg_ests.pdf",
+                    format="pdf",
+                    bbox_inches="tight",
+                )
+                plt.close(fig)
 
     trait_names = np.array(trait_names)
-    direc_unif_estimates = np.array(direc_unif_estimates)
-    stab_unif_estimates = np.array(stab_unif_estimates)
-    direc_argsort = np.argsort(direc_unif_estimates)
-    stab_argsort = np.argsort(stab_unif_estimates)
-    fig1, axs1 = plt.subplots(1, 1, figsize=(15, 15), layout="constrained")
-    axs1.plot(
-        np.arange(len(direc_unif_estimates)) + 1,
-        direc_unif_estimates[direc_argsort],
-        "b*",
-    )
-    axs1.set_xticks(
-        np.arange(len(direc_unif_estimates)) + 1,
-        labels=trait_names[direc_argsort],
-        rotation=90,
-    )
-    fig1.savefig(smk.output[0], format="pdf", bbox_inches="tight")
-    plt.close(fig1)
+    if smk.pheno_descr_file:
+        tick_names = np.array(tick_names)
+    direc_S_estimates = np.array(direc_S_estimates)
+    stab_S_estimates = np.array(stab_S_estimates)
+    direc_S_errs_emp = np.array(direc_S_errs_emp)
+    direc_S_errs_jk = np.array(direc_S_errs_jk)
+    stab_S_errs_emp = np.array(stab_S_errs_emp)
+    stab_S_errs_jk = np.array(stab_S_errs_jk)
 
-    fig2, axs2 = plt.subplots(1, 1, figsize=(15, 15), layout="constrained")
-    axs2.plot(np.arange(len(stab_unif_estimates)) + 1, stab_unif_estimates[stab_argsort], "b*")
-    axs2.set_xticks(
-        np.arange(len(stab_unif_estimates)) + 1,
-        labels=trait_names[stab_argsort],
-        rotation=90,
+    everything_df = pd.DataFrame(
+        {
+            "trait_name": trait_names,
+            "trait_num_snps": trait_num_snps,
+            "direc_odr_est": direc_S_estimates[0],
+            "direc_odr_emperr": direc_S_errs_emp[0],
+            "direc_odr_jkerr": direc_S_errs_jk[0],
+            "direc_wls_est": direc_S_estimates[1],
+            "direc_wls_emperr": direc_S_errs_emp[1],
+            "direc_wls_jkerr": direc_S_errs_jk[1],
+            "stab_odr_est": stab_S_estimates[0],
+            "stab_odr_emperr": stab_S_errs_emp[0],
+            "stab_odr_jkerr": stab_S_errs_jk[0],
+            "stab_wls_est": stab_S_estimates[1],
+            "stab_wls_emperr": stab_S_errs_emp[1],
+            "stab_wls_jkerr": stab_S_errs_jk[1],
+        }
     )
-    fig2.savefig(smk.output[1], format="pdf", bbox_inches="tight")
-    plt.close(fig2)
+    if smk.pheno_descr_file:
+        everything_df["trait_desc"] = tick_names
+        cur_cols = everything_df.columns.to_list()
+        new_cols = deepcopy(cur_cols)
+        new_cols.insert(1, new_cols[-1])
+        new_cols = new_cols[:-1]
+        everything_df = everything_df[new_cols]
+    everything_df.to_parquet(path=smk.output_parquet)
 
 
 if __name__ == "__main__":

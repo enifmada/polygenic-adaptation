@@ -12,18 +12,15 @@ m2.mutationStackPolicy = "l";
 // set up our chromosome: 10 QTLs, surrounded by neutral regions
 defineConstant("C", num_loci); // number of QTLs
 defineConstant("W", 0); // size of neutral buffer on each side
-defineConstant("logInterval", max(1,asInteger(num_gens/num_sampling_pts)));
 pos = 0;
 q = NULL;
 for (i in 1:C)
 {
 //initializeGenomicElement(g1, pos, pos + W-1);
-pos = pos + W;
 initializeGenomicElement(g2, pos, pos);
 q = c(q, pos);
 pos = pos + 1;
 //initializeGenomicElement(g1, pos, pos + W-1);
-pos = pos + W;
 }
 defineConstant("Q", q); // remember our QTL positions
 // we want the QTLs to be unlinked; build a recombination map for that
@@ -53,9 +50,7 @@ beta_array = readFile(beta_file);
 freq_array = readFile(freq_file);
 for (q in Q)
 {
-mut_size = rnorm(1,1,0.5);
 init_freq = asFloat(freq_array[i]);
-
 //initialize the right number of individuals with the mutation - thx Matthias
 is_effect = asLogical(1:size(g) <= init_freq * size(g));
 is_effect = sample(is_effect, size(is_effect));
@@ -64,7 +59,7 @@ g[is_effect].addNewMutation(m2, asFloat(beta_array[i]), q);
 g[!is_effect].addNewMutation(m2, 0.0, q);
 i = i+1;
 }
-log = community.createLogFile(""+output_path+"_slim.txt", sep="\t", logInterval=logInterval);
+log = community.createLogFile(""+output_path+"_slim.txt", sep="\t", logInterval=1);
 log.addCycle();
 log.addCustomColumn("MeanP", "mean(p1.individuals.tagF);");
 log.addCustomColumn("VarP", "var(p1.individuals.tagF);");
@@ -105,11 +100,11 @@ phenotypes = add_phenotype + env;
 
 if (mode == "stabilizing"){
 	exp_num = (optimum-phenotypes)^2;
-	exp_denom = omega^2;
+	exp_denom = vs;
 	inds.fitnessScaling = exp(-0.5*(exp_num/exp_denom));
 	}
 else if (mode == "directional"){
-	inds.fitnessScaling = exp(dz*phenotypes/omega^2);
+	inds.fitnessScaling = exp(dz*phenotypes/vs);
 	}
 else{
 	stop();
