@@ -29,5 +29,3 @@
 Code accompanying forthcoming manuscript on detecting polygenic adaptation from
 GWAS summary statistics and time-series allele frequency data. Documentation
 also forthcoming.
-
-Test commit on new branch.
